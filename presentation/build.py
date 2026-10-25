@@ -1,175 +1,198 @@
-"""Build editable PPTX and a matching PDF. Run from any working directory."""
+"""Editorial deck: PDF master, fixed-layout PPTX and editable source PPTX.
+Requires python-pptx, reportlab, Pillow, pdftoppm and Liberation fonts.
+"""
 from pathlib import Path
-import textwrap
+import subprocess
+import tempfile
+from math import cos,sin,pi
 from pptx import Presentation
-from pptx.util import Inches, Pt
+from pptx.util import Inches,Pt
 from pptx.dml.color import RGBColor
-from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
+from pptx.enum.shapes import MSO_SHAPE,MSO_CONNECTOR
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 ROOT=Path(__file__).resolve().parents[1]; OUT=ROOT/'presentation'
-W,H=13.333333,7.5
-BG='101B16'; CARD='192A21'; LINE='365044'; WHITE='F2F1E8'; MINT='AFD5B8'; MUTED='A4B3A7'; GOLD='D7B36A'; RED='D98B7B'
-for name,file in [('Sans','DejaVuSans.ttf'),('Bold','DejaVuSans-Bold.ttf'),('Serif','DejaVuSerif.ttf')]:
- pdfmetrics.registerFont(TTFont(name,'/usr/share/fonts/truetype/dejavu/'+file))
-r=Presentation();r.slide_width=Inches(W);r.slide_height=Inches(H)
-r.core_properties.title='True Path — понимание, которое накапливается'
-r.core_properties.author='True Path team'
-c=canvas.Canvas(str(OUT/'TruePath.pdf'),pagesize=(W*72,H*72));c.setTitle(r.core_properties.title)
-notes=[]; slide=None; index=0
+W,H=1600,900
+PAPER='F2F0E7'; INK='11261D'; GREEN='214E3A'; MINT='BDD8B9'; GREY='657468'; RULE='CCD2C6'; DARKRULE='3E5C49'; RED='A85A42'
+FONTS=Path('/usr/share/fonts/truetype/liberation')
+for n,f in [('sans','LiberationSans-Regular.ttf'),('bold','LiberationSans-Bold.ttf'),('serif','LiberationSerif-Regular.ttf'),('italic','LiberationSerif-Italic.ttf')]:pdfmetrics.registerFont(TTFont(n,str(FONTS/f)))
+r=Presentation();r.slide_width=Inches(16);r.slide_height=Inches(9)
+r.core_properties.title='True Path — от ответа к пониманию';r.core_properties.author='True Path team'
+c=canvas.Canvas(str(OUT/'TruePath.pdf'),pagesize=(W,H));c.setTitle(r.core_properties.title)
+notes=[];sl=None;num=0;fg=INK;muted=GREY;rules=RULE
 
-def color(h):return RGBColor.from_string(h)
-def rect(x,y,w,h,fill=CARD,stroke=None,radius=False):
- sh=slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE if radius else MSO_SHAPE.RECTANGLE,Inches(x),Inches(y),Inches(w),Inches(h))
- sh.fill.solid();sh.fill.fore_color.rgb=color(fill)
- if stroke:sh.line.color.rgb=color(stroke)
- else:sh.line.fill.background()
- c.setFillColor('#'+fill);c.setStrokeColor('#'+(stroke or fill))
- if radius:c.roundRect(x*72,(H-y-h)*72,w*72,h*72,10,fill=1,stroke=bool(stroke))
- else:c.rect(x*72,(H-y-h)*72,w*72,h*72,fill=1,stroke=bool(stroke))
+def rgb(v):return RGBColor.from_string(v)
+def box(x,y,w,h,fill):
+ s=sl.shapes.add_shape(MSO_SHAPE.RECTANGLE,Inches(x/100),Inches(y/100),Inches(w/100),Inches(h/100));s.fill.solid();s.fill.fore_color.rgb=rgb(fill);s.line.fill.background()
+ c.setFillColor('#'+fill);c.rect(x,H-y-h,w,h,fill=1,stroke=0)
 
-def line(x1,y1,x2,y2,col=LINE,width=1.2):
- sh=slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT,Inches(x1),Inches(y1),Inches(x2),Inches(y2));sh.line.color.rgb=color(col);sh.line.width=Pt(width)
- c.setStrokeColor('#'+col);c.setLineWidth(width);c.line(x1*72,(H-y1)*72,x2*72,(H-y2)*72)
+def dot(x,y,rad=7,col=None):
+ col=col or fg
+ s=sl.shapes.add_shape(MSO_SHAPE.OVAL,Inches((x-rad)/100),Inches((y-rad)/100),Inches(rad*2/100),Inches(rad*2/100));s.fill.solid();s.fill.fore_color.rgb=rgb(col);s.line.fill.background()
+ c.setFillColor('#'+col);c.circle(x,H-y,rad,fill=1,stroke=0)
 
-def text(s,x,y,w,size=20,col=WHITE,font='Sans',leading=1.28):
- # Explicit wrapping is shared between PDF and PPTX for predictable line breaks.
- lines=[]
- for paragraph in s.split('\n'):
-  current=''
-  for word in paragraph.split():
-   trial=(current+' '+word).strip()
-   if current and pdfmetrics.stringWidth(trial,font,size)>w*72:
-    lines.append(current);current=word
-   else:current=trial
-  lines.append(current)
- height=max(.22,len(lines)*size*leading/72+.1)
- assert x>=0 and y>=0 and x+w<=W+.02 and y+height<=H+.06,(index,s,y,height)
- box=slide.shapes.add_textbox(Inches(x),Inches(y),Inches(w),Inches(height))
- tf=box.text_frame;tf.clear();tf.margin_left=tf.margin_right=tf.margin_top=tf.margin_bottom=0;tf.word_wrap=False
- for i,t in enumerate(lines):
-  p=tf.paragraphs[0] if i==0 else tf.add_paragraph();p.text=t;p.font.name='DejaVu Serif' if font=='Serif' else 'DejaVu Sans';p.font.size=Pt(size);p.font.bold=font=='Bold';p.font.color.rgb=color(col);p.space_before=Pt(0);p.space_after=Pt(0);p.line_spacing=Pt(size*leading)
- c.setFillColor('#'+col);c.setFont(font,size)
- for i,t in enumerate(lines):c.drawString(x*72,(H-y)*72-size-i*size*leading,t)
- return height
+def line(x,y,a,b,col=None,width=1):
+ col=col or rules
+ s=sl.shapes.add_connector(MSO_CONNECTOR.STRAIGHT,Inches(x/100),Inches(y/100),Inches(a/100),Inches(b/100));s.line.color.rgb=rgb(col);s.line.width=Pt(width*.72)
+ c.setStrokeColor('#'+col);c.setLineWidth(width);c.line(x,H-y,a,H-b)
+
+def t(s,x,y,size=30,col=None,font='sans',maxw=None,lead=1.12):
+ col=col or fg;ls=s.split('\n');width=max(pdfmetrics.stringWidth(z,font,size) for z in ls)
+ height=(len(ls)-1)*size*lead+size
+ assert width<=(maxw or W-x-72)+.1,(num,'text too wide',s,width,maxw)
+ assert x>=0 and y>=0 and y+height<=H-35,(num,'text below page',s)
+ tb=sl.shapes.add_textbox(Inches(x/100),Inches(y/100),Inches((width+12)/100),Inches((height+12)/100));tf=tb.text_frame;tf.clear();tf.word_wrap=False
+ tf.margin_left=tf.margin_right=tf.margin_top=tf.margin_bottom=0
+ for i,z in enumerate(ls):
+  p=tf.paragraphs[0] if i==0 else tf.add_paragraph();p.text=z;p.font.name='Liberation Serif' if font in ('serif','italic') else 'Liberation Sans';p.font.size=Pt(size*.72);p.font.bold=font=='bold';p.font.italic=font=='italic';p.font.color.rgb=rgb(col);p.line_spacing=Pt(size*lead*.72);p.space_before=p.space_after=Pt(0)
+ c.setFont(font,size);c.setFillColor('#'+col);asc=pdfmetrics.getAscent(font)*size/1000
+ for i,z in enumerate(ls):c.drawString(x,H-y-asc-i*size*lead,z)
 
 def pic(path,x,y,h):
  from PIL import Image
  iw,ih=Image.open(path).size;w=h*iw/ih
- slide.shapes.add_picture(str(path),Inches(x),Inches(y),height=Inches(h))
- c.drawImage(str(path),x*72,(H-y-h)*72,width=w*72,height=h*72)
+ sl.shapes.add_picture(str(path),Inches(x/100),Inches(y/100),height=Inches(h/100));c.drawImage(str(path),x,H-y-h,width=w,height=h)
 
-def start(section,note):
- global slide,index
- if slide is not None:c.showPage()
- index+=1;slide=r.slides.add_slide(r.slide_layouts[6]);slide.background.fill.solid();slide.background.fill.fore_color.rgb=color(BG)
- c.setFillColor('#'+BG);c.rect(0,0,W*72,H*72,fill=1,stroke=0)
- text('TRUE PATH',.65,.28,3,11,MINT,'Bold');text(section.upper(),7,.28,5.6,10,MUTED)
- line(.65,.76,12.68,.76);line(.65,7.04,12.68,7.04)
- text('ПРОВЕРИТЬ / ПОНЯТЬ / СВЯЗАТЬ',.65,7.15,9,8,MUTED)
- text(f'{index:02d}',12.12,7.12,.55,11,MINT)
- slide.notes_slide.notes_text_frame.text=note
- notes.append((section,note))
+def start(section,note,bg=PAPER):
+ global sl,num,fg,muted,rules
+ if sl is not None:c.showPage()
+ num+=1;sl=r.slides.add_slide(r.slide_layouts[6]);sl.background.fill.solid();sl.background.fill.fore_color.rgb=rgb(bg)
+ c.setFillColor('#'+bg);c.rect(0,0,W,H,fill=1,stroke=0)
+ fg=PAPER if bg==INK else INK;muted='A7B9AA' if bg==INK else GREY;rules=DARKRULE if bg==INK else RULE
+ # Small branch mark, paired with discreet running heads.
+ line(76,58,91,43,fg,2);line(91,43,105,58,fg,2)
+ for x,y in [(76,58),(91,43),(105,58)]:dot(x,y,3,fg)
+ t('TRUE PATH',124,38,18,font='bold');t(section,1110,40,16,col=muted,maxw=420)
+ line(76,815,1524,815)
+ t('ОТ ОТВЕТА К ПОНИМАНИЮ',76,838,13,col=muted)
+ t(f'{num:02}',1485,833,21,col=fg)
+ sl.notes_slide.notes_text_frame.text=note;notes.append((section,note))
 
-def title(s,sub=None):
- text(s,.65,1.02,12,34,WHITE,'Serif',1.15)
- if sub:text(sub,.68,2.2,11.7,15,MUTED)
+start('01  /  Идея','25 секунд. True Path — Android-прототип исследования информации. Мы начинаем с проверяемых оснований и развиваем его в личную систему знаний. Сейчас работаем на учебном потоке; память и адаптация — следующий этап.')
+t('True Path',76,164,172,font='serif',maxw=1150)
+t('Проверить. Понять. Связать.',84,390,49,col=GREEN,maxw=1170)
+t('Из отдельной новости —\nв личную систему знаний.',86,588,32,col=GREY)
+# A path, rather than a generic decoration: one material branches into evidence and returns to a conclusion.
+for a,b in [((1100,600),(1235,480)),((1235,480),(1390,575)),((1100,600),(1220,718)),((1220,718),(1390,575))]:line(*a,*b,GREEN,2)
+for x,y,rr in [(1100,600,10),(1235,480,7),(1220,718,7),(1390,575,14)]:dot(x,y,rr,GREEN)
+t('УЧЕБНЫЙ ПРОТОТИП',86,735,15,col=GREY)
 
-def card(x,y,w,num,head,body):
- rect(x,y,w,2.6,radius=True);text(num,x+.25,y+.22,w-.5,13,MINT,'Bold');text(head,x+.25,y+.7,w-.5,23,WHITE,'Serif');text(body,x+.25,y+1.8,w-.5,15,MUTED)
+start('02  /  Проблема','40 секунд. AI-агент уже умеет исследовать вопрос. Мы не заявляем, что это невозможно повторить промптом. Наша продуктовая гипотеза — связать получение ответа с сохранением оснований и последующим пониманием. Эффект на память ещё нужно измерить.',INK)
+t('Ответ есть.',76,160,94,font='serif',col=MINT)
+t('Что останется\nчерез неделю?',76,288,94,font='serif',maxw=870,lead=1.02)
+line(1050,170,1050,720,width=1)
+t('AI уже умеет отвечать.',1110,195,25,col=MINT,maxw=400)
+t('Но контекст теряется.\nОснование забывается.\nПохожий случай\nснова кажется новым.',1110,310,29,maxw=400,lead=1.55)
+t('Наша задача — сохранить связь между ответом и пониманием.',80,705,29,col=MINT)
 
-start('01 / Идея','Открытие, 30 секунд. True Path начинается с проверки новости, но мы развиваем продукт дальше: сохраняем основания, связываем исследования и помогаем возвращаться к важному. Сегодня покажем работающий учебный прототип и отдельно следующий этап. Не обещаем, что человек никогда ничего не забудет.')
-text('True Path',.68,1.35,10,64,WHITE,'Serif')
-text('Понимание, которое\nнакапливается.',.73,2.62,10.8,38,MINT,'Serif',1.17)
-text('От отдельной новости — к личной системе знаний.',.76,4.42,11.5,21)
-rect(.75,5.58,7.6,.65,CARD,radius=True);text('Android-прототип  /  Память и адаптация — следующий этап',.95,5.77,7.2,12,MUTED)
+start('03  /  Учебный сюжет','40 секунд. Все материалы этого сюжета вымышлены. Новость обещает бесплатный транспорт, но человек хочет знать, можно ли не покупать билет завтра. Нужно проверить область действия, участников и сроки. Недостаточно поставить всей новости одну метку «правда».')
+t('Одна фраза.',76,154,83,font='serif')
+t('Три разных\nвопроса.',76,263,83,font='serif',col=GREEN,lead=1.02)
+t('УЧЕБНАЯ НОВОСТЬ',850,163,15,col=GREY)
+t('«В городе запускают\nбесплатный транспорт»',850,209,48,font='serif',maxw=680)
+for y,n,head,sub in [(390,'01','Где?','Весь город или один маршрут?'),(520,'02','Для кого?','Все пассажиры или участники пилота?'),(650,'03','Когда?','Постоянно или в дни испытаний?')]:
+ line(850,y-20,1524,y-20);t(n,850,y,22,col=GREY);t(head,916,y-6,36,font='serif');t(sub,916,y+48,22,col=GREY,maxw=600)
+t('Общий заголовок ещё не даёт основания\nдля личного решения.',80,696,27,maxw=700,col=GREEN)
 
-start('02 / Проблема','40 секунд. Даже хороший ответ легко теряется: человек не помнит основание, не замечает похожую ошибку в другой новости и снова начинает с нуля. Это продуктовая гипотеза, а не уже измеренная статистика пользователей. Наша цель — связать получение ответа с последующим пониманием.')
-title('Ответ получен. Что осталось через неделю?')
-card(.7,2.7,3.8,'01','Контекст потерян','Сохранили вывод,\nно потеряли его основания.')
-card(4.77,2.7,3.8,'02','Связь не замечена','Похожая ошибка рассуждения\nвыглядит новой ситуацией.')
-card(8.84,2.7,3.8,'03','Знание не закрепилось','Прочитать и согласиться —\nещё не значит вспомнить.')
-text('Задача продукта — сократить путь от ответа к пониманию.',.75,6,11.7,22,MINT)
+start('04  /  Основания','45 секунд. Это упрощённая схема учебной проверки, не снимок приложения. Связь ведёт к конкретному условию и документу. Условия пилота нельзя переносить на весь город. В приложении узлы постепенно приходят из подготовленного потока; реальный API пока не подключён.',INK)
+t('Вывод, который\nможно разобрать.',76,143,78,font='serif',maxw=1050,lead=1.04)
+# Spatial evidence graph: claim above two source branches, one cited condition below.
+line(365,400,180,545,MINT,2);line(365,400,570,545,MINT,2)
+line(180,545,365,680,MINT,2);line(570,545,365,680,MINT,2)
+dot(365,400,11,MINT);dot(180,545,8,MINT);dot(570,545,8,MINT);dot(365,680,13,MINT)
+t('Обещание',395,382,22,col=MINT)
+t('Публикация',94,573,21);t('Условия пилота',490,573,21);t('Конкретная цитата',395,666,22,col=MINT)
+line(790,373,790,727)
+t('ОГРАНИЧЕНИЕ',850,387,16,col=MINT)
+t('Бесплатно\nв пределах\nпилота.',850,441,77,font='serif',lead=1.01)
+t('Это не обещание для всего города.',854,708,27,col=MINT,maxw=660)
 
-start('03 / Сценарий','45 секунд. Используем учебную новость о бесплатном транспорте. Ключевой вопрос — действует ли обещание для всех. Не требуется разоблачать новость целиком: нужно разнести отдельные утверждения, условия и неизвестное. Этот материал вымышленный, как и источники учебного исследования.')
-title('«В городе запускают бесплатный транспорт»')
-rect(.75,2.65,7.3,2.35,radius=True);text('ВОПРОС ПОЛЬЗОВАТЕЛЯ',1,2.91,6.7,12,MINT,'Bold');text('Можно ли завтра\nне покупать билет?',1,3.45,6.5,30,WHITE,'Serif')
-text('Проверяем отдельно',8.55,2.88,4.05,22,MINT,'Serif')
-text('Где действует предложение?\nКто может участвовать?\nКогда начинается программа?',8.55,3.55,4.05,19)
-text('Учебный сюжет. Не сообщение о действующей транспортной программе.',.78,5.8,11.8,13,MUTED)
+start('05  /  Прототип','45 секунд. Показаны реальные Compose-эталоны из репозитория: светлая версия интерфейса. Они не являются фотографиями телефона и не заменяют device-проверку. Учебная лента запускает потоковый граф, а результат сохраняется в истории. В чат также предоставлены более новые тёмные экраны; их оригиналы недоступны в файловом экспорте.')
+# Two intact screens are shown as evidence, not as decorative miniatures.
+S=ROOT/'app/src/test/snapshots/images'
+pic(S/'ru.truepath.app.ui_DesignSnapshotTest_feed.png',100,154,600)
+pic(S/'ru.truepath.app.ui_DesignSnapshotTest_graphConclusion.png',410,154,600)
+t('Путь от заголовка\nдо основания.',800,238,69,font='serif',maxw=720,lead=1.04)
+t('Лента → исследование → граф → история',805,477,27,col=GREEN,maxw=700)
+t('Подготовленный поток событий.\nБез выдачи демонстрации\nза реальный фактчекинг.',805,563,29,col=GREY,lead=1.3)
+t('COMPOSE / PAPARAZZI · СНИМКИ ИЗ РЕПОЗИТОРИЯ',100,777,13,col=GREY)
 
-start('04 / Работающий принцип','50 секунд. Упрощённая схема учебного исследования: общий заголовок проверяется по условиям конкретного пилота. На схеме показаны основания вывода, а не граф знаний пользователя. Сам факт наличия документа ещё не доказывает правильность всех интерпретаций. Текущий прототип строит граф из подготовленных событий.')
-title('Вывод можно разобрать до основания.')
-for x,y,w,h,head,body,col in [( .8,2.6,3.35,1.35,'Утверждение','«Проезд бесплатный для всех»',GOLD),(5,2.6,3.35,1.35,'Условия маршрута','Пилот: ограничения и регистрация',MINT),(9.2,2.6,3.35,1.35,'Доказательство','Бесплатно в пределах пилота',MINT)]:
- rect(x,y,w,h,radius=True);text(head,x+.18,y+.17,w-.36,17,col,'Bold');text(body,x+.18,y+.65,w-.36,14)
-line(4.15,3.27,5,3.27);line(8.35,3.27,9.2,3.27);line(6.67,3.95,6.67,4.5)
-rect(2.3,4.5,8.7,1.4,fill=CARD,stroke=GOLD,radius=True);text('НЕДОСТАТОЧНО ОСНОВАНИЙ ДЛЯ ОБЩЕГО ОБЕЩАНИЯ',2.58,4.72,8.1,12,GOLD,'Bold');text('Условия пилота нельзя переносить на весь город.',2.58,5.14,8.1,22,WHITE,'Serif')
-text('Схема учебного сценария · В приложении граф появляется постепенно',.8,6.36,11.6,12,MUTED)
+start('06  /  Память — следующий этап','50 секунд. Эта функция запланирована, а не реализована. Новое исследование о льготе может напомнить прежнее исследование о транспорте. Общим является способ проверки области действия, не истинность двух выводов. Пользователь видит основания, принимает или отклоняет ассоциацию.',MINT)
+t('Следующая новость —\nуже не с нуля.',76,137,82,font='serif',maxw=1400,lead=1.02)
+line(245,550,800,550,GREEN,2);line(800,550,1355,550,GREEN,2)
+dot(245,550,10,GREEN);dot(800,550,18,GREEN);dot(1355,550,10,GREEN)
+t('РАНЬШЕ',110,410,16,col=GREEN);t('Бесплатный\nтранспорт',110,451,42,font='serif')
+t('ПРИНЦИП ПРОВЕРКИ',626,616,16,col=GREEN);t('Область действия',626,655,36,font='serif')
+t('ТЕПЕРЬ',1120,410,16,col=GREEN);t('Новая льгота\n«для всех»',1120,451,42,font='serif',maxw=410)
+t('Объяснимая ассоциация. Не автоматическое подтверждение.',80,754,28,col=GREEN,maxw=1400)
 
-start('05 / Личная память — план','50 секунд. Здесь начинается запланированное расширение. Новое исследование о другом обещании может напомнить прежний случай потери условий. Ассоциация переносит метод проверки, а не истинность вывода. Пользователь должен видеть почему предложена связь, её основания и возможность отказаться.')
-title('Следующая новость уже не с нуля.','ПРОЕКТИРУЕМЫЙ СЦЕНАРИЙ · ещё не реализован')
-rect(.8,3,4.35,1.75,radius=True);text('ВЫ УЖЕ РАЗБИРАЛИ',1.05,3.25,3.8,12,MUTED);text('Бесплатный транспорт\nв пределах пилота',1.05,3.83,3.8,23,WHITE,'Serif')
-rect(8.2,3,4.35,1.75,radius=True);text('НОВОЕ ИССЛЕДОВАНИЕ',8.45,3.25,3.8,12,MUTED);text('«Льгота доступна\nвсем участникам»',8.45,3.83,3.8,23,WHITE,'Serif')
-line(5.15,3.85,8.2,3.85,MINT,2);text('Проверить\nобласть действия',5.38,4.1,2.6,14,MINT)
-text('Общая стратегия проверки. Не автоматическое подтверждение.',.85,5.65,11.7,23,MINT,'Serif')
+start('07  /  Усвоение — следующий этап','45 секунд. В планируемой системе хранятся основания, личные связи и попытки воспроизведения. Пользователь добровольно отвечает на один вопрос и может вернуться к нему позже. Просмотр или лайк не означают знания. Не обещаем идеальной памяти или доказанного педагогического эффекта.')
+t('Сохранить —\nне значит запомнить.',76,140,80,font='serif',maxw=1430,lead=1.04)
+t('«Какие условия нужно уточнить,\nпрежде чем менять свои планы?»',80,378,48,font='italic',col=GREEN,maxw=1440)
+for x,n,head,body in [(80,'01','Объяснить','Своими словами.'),(590,'02','Вернуться','Когда удобно пользователю.'),(1100,'03','Применить','На другом примере.')]:
+ line(x,590,x+420,590);t(n,x,614,18,col=GREY);t(head,x,655,43,font='serif');t(body,x,718,25,col=GREY,maxw=420)
 
-start('06 / Усвоение — план','45 секунд. В планируемом цикле три разных слоя: архив оснований, личные связи и история добровольного воспроизведения. Предлагаем один короткий вопрос, затем возврат спустя время. Просмотр, лайк и время чтения не считаются доказательством усвоения. Педагогическую пользу ещё нужно измерить.')
-title('Сохранить — ещё не значит запомнить.','СЛЕДУЮЩИЙ ЭТАП · добровольное закрепление знаний')
-card(.7,2.8,3.8,'ПАМЯТЬ ИССЛЕДОВАНИЙ','На чём основано?','Материалы, цитаты, версии\nи история изменения вывода.')
-card(4.77,2.8,3.8,'ГРАФ ПОНИМАНИЯ','С чем связано?','Понятия и объяснимые\nассоциации между работами.')
-card(8.84,2.8,3.8,'ИСТОРИЯ УСВОЕНИЯ','Смогу применить?','Один вопрос, попытка ответа\nи возвращение спустя время.')
-text('Вопрос: «Какие условия нужно уточнить до принятия решения?»',.8,6.02,11.7,19,MINT)
+start('08  /  Адаптация — следующий этап','55 секунд. Это два независимых контура. Проверяемые эпизоды источников помогают корректировать маршрут поиска. Интересы и попытки воспроизведения помогают объяснять. Мнение модели или жалоба не являются доказанной ошибкой источника. Журнал — первый этап; автоматические веса только после оценки качества и с откатом.',INK)
+t('С опытом — полезнее.',76,145,84,font='serif',col=MINT)
+line(800,329,800,680)
+t('Лучше\nпроверять.',80,345,70,font='serif',lead=1.02)
+t('Понятнее\nобъяснять.',885,345,70,font='serif',lead=1.02)
+t('Основания. Независимость.\nИсправления источников.',84,565,29,col=MINT,lead=1.35)
+t('Знакомые понятия. Ассоциации.\nРезультаты воспроизведения.',889,565,29,col=MINT,lead=1.35,maxw=640)
+t('Предпочтения пользователя не определяют достоверность.',80,742,28,col=MINT)
 
-start('07 / Адаптация — план','55 секунд. Разделяем два контура. Источники оцениваются по проверяемым эпизодам с основаниями, темой и датой, а не по мнению модели. Сначала улучшаем маршрут поиска и перепроверки; автоматические веса позже, после сравнительной оценки. Пользовательские интересы влияют на объяснение, но не достоверность.')
-title('Система учитывает опыт. По двум правилам.')
-rect(.8,2.55,5.7,3.05,radius=True);rect(6.8,2.55,5.7,3.05,radius=True)
-text('Качество исследования',1.1,2.86,5.1,25,MINT,'Serif');text('Эпизоды с проверяемыми основаниями\nПроисхождение и независимость\nИсправления и актуальность',1.1,3.66,5.05,18)
-text('Польза для человека',7.1,2.86,5.1,25,MINT,'Serif');text('Знакомые понятия и ассоциации\nПредпочтения объяснения\nРезультаты воспроизведения',7.1,3.66,5.05,18)
-text('Интерес пользователя не определяет достоверность.',.85,6.12,11.7,24,GOLD,'Serif')
+start('09  /  Фактический статус','40 секунд. Проверяемый код 47f97e4: нами локально выполнены компиляция, 16 unit-тестов и Lint с нулём ошибок и шестью предупреждениями. Это не подтверждает реальный API, жесты на устройстве или усвоение. Справа показаны следующие этапы. Перед защитой обновить показатели по финальной версии.')
+t('Что работает сегодня',76,141,80,font='serif')
+t('16',76,314,202,font='serif',col=GREEN)
+t('unit-тестов пройдено',86,548,37,font='serif')
+t('Компиляция успешна\nLint: 0 ошибок / 6 предупреждений',87,625,27,col=GREY,lead=1.4)
+line(750,329,750,737)
+t('В РАБОЧЕМ ПРОТОТИПЕ',830,341,16,col=GREY)
+t('Учебная лента\nПотоковый граф\nЛокальная история',830,387,37,font='serif',lead=1.28)
+t('СЛЕДУЮЩИЕ ЭТАПЫ',830,590,16,col=GREY)
+t('Реальные API · постоянная память\nАссоциации · усвоение · адаптация',830,635,28,col=GREEN,lead=1.4,maxw=700)
+t('ЛОКАЛЬНАЯ ПРОВЕРКА КОДА 47f97e4 · НЕ СТАТУС GITHUB ACTIONS',88,768,13,col=GREY)
 
-start('08 / Отличие продукта','45 секунд. Агент с инструментами может воспроизвести отдельные функции, и мы не заявляем обратное. Отличие True Path — постоянный продуктовый процесс: сохранение оснований, связанная память, пересмотр и добровольное усвоение. Сейчас реализован первый слой прототипа; полный цикл — цель развития.')
-title('Зачем приложение, если есть AI-агент?')
-text('Отдельный запрос',.9,2.7,5.2,25,MUTED,'Serif');text('Постоянный цикл True Path',6.9,2.7,5.2,25,MINT,'Serif')
-for y,left,right in [(3.55,'Получить ответ','Сохранить основания и версии'),(4.35,'Разобраться в одном вопросе','Связать исследования со временем'),(5.15,'Вернуться к разговору','Вернуться к знанию и проверить усвоение')]:
- text(left,.95,y,5.15,16);text(right,6.95,y,5.3,16);line(.9,y+.6,12.4,y+.6)
-text('Ценность накапливается в истории пользователя и качестве процесса.',.9,6.2,11.6,19,MINT)
+start('10  /  Завершение','30 секунд. True Path начинается с проверки информации. Полный продуктовый цикл должен сохранять основания, связывать новые исследования с прежними и поддерживать добровольное усвоение. Ближайшие рубежи — реальная интеграция и локальный сценарий памяти. Готовы к вопросам.',MINT)
+t('Знать больше.\nПонимать глубже.',76,174,112,font='serif',maxw=1440,lead=1.03)
+t('True Path',84,508,50,font='serif')
+t('Каждое исследование помогает следующему.',86,593,34,col=GREEN)
+for x,head in [(90,'ПРОВЕРИТЬ'),(640,'ПОНЯТЬ'),(1190,'СВЯЗАТЬ')]:
+ dot(x,731,6,GREEN);t(head,x+25,719,18,col=GREEN)
+line(250,731,600,731,GREEN);line(790,731,1150,731,GREEN)
 
-start('09 / Фактический статус','50 секунд. Экран — реальный Compose-рендер из репозитория, светлая версия интерфейса, не фотография телефона. Локально на коде 47f97e4 нами выполнены компиляция, 16 unit-тестов и Lint: 0 ошибок, 6 предупреждений. Эти результаты не подтверждают реальный фактчекинг или образовательную пользу. Память M1 пока только специфицирована. Скриншоты, присланные в чат, показывают тёмную тему, но не входят в экспорт этой сборки.')
-title('Прототип работает. Границы обозначены.')
-pic(ROOT/'app/src/test/snapshots/images/ru.truepath.app.ui_DesignSnapshotTest_feed.png',.85,2.4,4.25)
-pic(ROOT/'app/src/test/snapshots/images/ru.truepath.app.ui_DesignSnapshotTest_graphConclusion.png',3.02,2.4,4.25)
-text('ПРОВЕРЕНО ЛОКАЛЬНО · 47f97e4',5.48,2.62,6.9,12,MINT,'Bold');text('16 тестов · 0 ошибок Lint',5.48,3.12,6.9,29,WHITE,'Serif');text('Компиляция успешна. Lint: 6 предупреждений.\nЛента, потоковый учебный граф и история.',5.48,3.9,6.85,17)
-text('СЛЕДУЮЩИЕ ЭТАПЫ',5.48,5.05,6.85,12,GOLD,'Bold');text('Реальные API · постоянная память\nАссоциации · усвоение · адаптация',5.48,5.48,6.8,19)
-text('Снимки Compose / Paparazzi из репозитория',.85,6.72,5.8,9,MUTED)
+start('Запасной  /  Архитектура','Сейчас: Compose, Flow событий и JSON. План M1: Room, постоянные файлы, миграции и экспорт. Обработка на внешних API напрямую из Android при допустимой авторизации. Сервер не разрабатываем; API-ключи не встраиваем в APK. Память локальна, для внешнего вызова берём только нужный контекст.',INK)
+t('Память — данные. Не кэш.',76,143,78,font='serif',col=MINT)
+for y,n,head,body in [(320,'01','Сейчас','Compose · Flow · JSON-история'),(450,'02','Этап M1','Room · filesDir · миграции · экспорт'),(580,'03','Интеграция','Внешние API · ID задачи · восстановление')]:
+ line(80,y-20,1515,y-20);t(n,80,y,22,col=MINT);t(head,170,y-4,37,font='serif');t(body,650,y+3,29,maxw=870)
+t('Очистка кэша не удаляет базу. Удаление приложения требует резервной копии.',84,748,23,col=MINT)
 
-start('10 / Завершение','30 секунд. Возвращаемся к исходной идее. Мы хотим, чтобы пользователь мог проверить сообщение, понять ограничения и использовать изученный принцип в следующем случае. Ближайшие параллельные рубежи — реальная API-интеграция и локальный цикл памяти на учебных данных. После этого готовы к вопросам.')
-text('Следующая новость\nстановится понятнее.',.8,1.45,11.7,46,MINT,'Serif',1.17)
-text('Проверить информацию.\nСохранить основания.\nСвязать новое с тем, что уже знаешь.',.85,3.75,11.5,27)
-text('True Path',.85,6.05,5,29,WHITE,'Serif');text('Вопросы и обсуждение',8.7,6.2,3.9,16,MUTED)
+start('Запасной  /  Источники','Проверяемый эпизод включает утверждение, основание, дату, тему и исход проверки. Учитываем объём и смещение выборки, независимость источников и исправления. Без доказательства модель не штрафует источник. Автоматические веса остаются этапом M2 после независимого сравнения с базовой политикой.')
+t('Каждый эпизод\nможно проверить.',76,145,79,font='serif',maxw=1450,lead=1.05)
+t('Утверждение',80,430,32,font='serif');t('Основание',610,430,32,font='serif');t('Пересмотр',1150,430,32,font='serif')
+line(80,518,1515,518,GREEN,2)
+for x in [80,610,1150]:dot(x,518,7,GREEN)
+t('Что было сказано.\nВ какой теме и когда.',80,559,27,col=GREY,lead=1.4)
+t('С чем сопоставили.\nКак проверили расхождение.',610,559,27,col=GREY,lead=1.4,maxw=480)
+t('Что исправлено.\nЧто нужно перепроверить.',1150,559,27,col=GREY,lead=1.4,maxw=390)
+t('Репутация не заменяет доказательство конкретного утверждения.',80,738,30,col=GREEN)
 
-start('Запасной / Архитектура','Использовать при вопросах об устройстве. Сейчас JSON-история и учебный источник Flow событий; Room, миграции, экспорт и локальный индекс — проектируемая архитектура M1. Внешний API подключается напрямую из Android при допустимой клиентской авторизации. Ключи не встраиваются в APK. Сервер не разрабатываем.')
-title('Постоянная память — данные, а не кэш.')
-card(.7,2.8,3.8,'ANDROID / СЕЙЧАС','Compose + Flow','Учебный источник\nРедуктор событий · JSON-история')
-card(4.77,2.8,3.8,'ПАМЯТЬ / ПЛАН','Room + filesDir','Миграции · версии · экспорт\nПоиск связей · попытки усвоения')
-card(8.84,2.8,3.8,'ИНТЕГРАЦИЯ / ПЛАН','Внешние API','Асинхронные задачи\nИсточники · события · восстановление')
-text('Очистка кэша ≠ удаление базы. Удаление приложения требует резервной копии.',.8,6.12,11.7,17,MINT)
+start('Запасной  /  Оценка ценности','Образовательная эффективность пока не измерена. Функциональные проверки отдельно от полезности. Для полезности проверяем принятие и причины отказа от связей, воспроизведение спустя время и перенос на новый пример. Для адаптивной политики — независимые случаи, ошибки, стоимость и задержка. Количество узлов и уверенность модели не показатели истины.',INK)
+t('Как проверим\nрезультат.',76,143,83,font='serif',col=MINT,lead=1.04)
+for y,n,head,body in [(418,'01','Проверяемость','Есть основания. Сохранены версии.'),(526,'02','Польза','Связь помогает. Знание применяется.'),(634,'03','Качество','Меньше ошибок на независимых случаях.')]:
+ line(80,y-19,1515,y-19);t(n,80,y,21,col=MINT);t(head,170,y-4,36,font='serif');t(body,700,y+2,29,maxw=810)
 
-start('Запасной / Качество источников','Проверяемый эпизод содержит конкретное утверждение и основание расхождения. Жалоба пользователя или мнение модели не являются доказанным эпизодом. Учитываем тему, период, объём и смещение выборки. Принятый факт не выводится из репутации. Автоматические веса — M2 после независимой проверки и с откатом политики.')
-title('Источник ошибся? Сначала — основание.')
-text('Публикация → проверяемый эпизод → проверка → корректировка поиска',.85,2.8,11.5,24,MINT,'Serif')
-text('Храним',.9,3.7,5.3,23,WHITE,'Serif');text('Утверждение и цитату\nТему, дату и первоисточник\nИсход проверки и исправления',.9,4.22,5.3,19)
-text('Не делаем',7,3.7,5.3,23,GOLD,'Serif');text('Глобальный «процент правды»\nШтраф за несогласие пользователя\nСамоподтверждение рейтинга моделью',7,4.22,5.3,19)
-text('Журнал эпизодов — M1. Автоматические веса — после оценки качества.',.9,6.3,11.5,17,MUTED)
-
-start('Запасной / Проверка ценности','Не заявляем доказанную образовательную эффективность. Сначала измеряем работоспособность: ссылки на основания, отсутствие дублей, миграции, удаление. Затем — полезность связей и перенос знания с пользователями. Для будущих политик источников сравниваем точность с базовым вариантом на независимых случаях, фиксируя стоимость и задержку.')
-title('Доказывать пользу, а не считать узлы.')
-card(.7,2.8,3.8,'ПРОВЕРЯЕМОСТЬ','Основания доступны','Версии и исправления\nМиграции без потерь')
-card(4.77,2.8,3.8,'ПОЛЕЗНОСТЬ','Связь помогает','Принятие и причины отказа\nВоспроизведение спустя время')
-card(8.84,2.8,3.8,'КАЧЕСТВО','Лучше базовой политики','Независимые случаи\nОшибки · стоимость · задержка')
-text('Число узлов и уверенность модели сами по себе не означают качество.',.8,6.13,11.7,18,MINT)
-
-c.save();r.save(str(OUT/'TruePath.pptx'))
-(OUT/'SPEAKER_NOTES.md').write_text('# True Path — заметки выступающего\n\n10 основных слайдов: около 7–8 минут. Ещё 3 — для вопросов.\n\n'+ '\n\n'.join(f'## {i}. {h}\n\n{n}' for i,(h,n) in enumerate(notes,1))+'\n',encoding='utf-8')
-print('Built',index,'slides: PPTX + PDF + notes')
+c.save();r.save(str(OUT/'TruePath-editable.pptx'))
+# Main PPTX uses verified rendered pages so fonts and layout cannot shift.
+fixed=Presentation();fixed.slide_width=Inches(16);fixed.slide_height=Inches(9)
+fixed.core_properties.title=r.core_properties.title;fixed.core_properties.author='True Path team'
+with tempfile.TemporaryDirectory() as d:
+ subprocess.run(['pdftoppm','-scale-to','2400','-png',str(OUT/'TruePath.pdf'),str(Path(d)/'page')],check=True,capture_output=True)
+ pages=sorted(Path(d).glob('page-*.png'));assert len(pages)==13
+ for p,(_,note) in zip(pages,notes):
+  s=fixed.slides.add_slide(fixed.slide_layouts[6]);s.shapes.add_picture(str(p),0,0,width=fixed.slide_width,height=fixed.slide_height);s.notes_slide.notes_text_frame.text=note
+fixed.save(str(OUT/'TruePath.pptx'))
+(OUT/'SPEAKER_NOTES.md').write_text('# True Path — заметки выступающего\n\nРедакция 2. Десять основных слайдов — около 7 минут. Три запасных — для вопросов.\n\n'+ '\n\n'.join(f'## {i}. {h}\n\n{n}' for i,(h,n) in enumerate(notes,1))+'\n')
+print('Built 13 slides: PDF, fixed PPTX, editable PPTX, notes')
