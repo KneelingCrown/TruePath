@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GraphPresentationTest {
+    @Test fun `colored materials precede unchecked items without reordering within groups`() {
+        val nodes = listOf(
+            GraphNode("grey-1", "", NodeKind.SOURCE),
+            GraphNode("green", "", NodeKind.EVIDENCE, TrustStatus.SUPPORTED),
+            GraphNode("grey-2", "", NodeKind.MATERIAL),
+            GraphNode("red", "", NodeKind.CLAIM, TrustStatus.CONTRADICTED),
+            GraphNode("yellow", "", NodeKind.CLAIM, TrustStatus.UNCERTAIN),
+        )
+        assertEquals(listOf("green", "red", "yellow", "grey-1", "grey-2"), PresentedGraph(nodes, emptyList()).orderedMaterials.map { it.id })
+    }
     private val material = GraphNode("material", "Материал", NodeKind.MATERIAL)
     private val claim = GraphNode("claim", "Тезис", NodeKind.CLAIM, TrustStatus.CONTRADICTED)
     private val evidence = GraphNode("evidence", "Цитата", NodeKind.EVIDENCE, TrustStatus.SUPPORTED)

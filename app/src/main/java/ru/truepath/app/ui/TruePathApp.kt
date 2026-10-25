@@ -29,12 +29,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.truepath.app.*
 import ru.truepath.app.domain.Attachment
+import ru.truepath.app.domain.ThemeMode
 import ru.truepath.app.ui.screens.*
 import ru.truepath.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TruePathApp(model: TruePathViewModel) {
+    val palette = LocalTruePathPalette.current
+    val dark = LocalTruePathDark.current
     val state by model.state.collectAsState()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -58,10 +61,12 @@ fun TruePathApp(model: TruePathViewModel) {
     if (state.tab == AppTab.GRAPH && !state.loading) {
         Box(Modifier.fillMaxSize()) {
             GraphScreen(state.selectedSession, model::stop, model::resume,
-                { model.selectTab(AppTab.CHECK) }, model::leaveGraph)
+                { model.selectTab(AppTab.CHECK) }, model::leaveGraph,
+                onToggleTheme = { model.setTheme(if (dark) ThemeMode.LIGHT else ThemeMode.DARK) })
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
         }
-    } else AppShell(state.tab, model::selectTab, { showAbout = true }, snackbar) {
+    } else AppShell(state.tab, model::selectTab, { showAbout = true }, snackbar,
+        onToggleTheme = { model.setTheme(if (dark) ThemeMode.LIGHT else ThemeMode.DARK) }) {
         if (state.loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         else AnimatedContent(
             targetState = state.tab,
@@ -85,6 +90,7 @@ fun TruePathApp(model: TruePathViewModel) {
         icon = { BrandMark() }, title = { Text("Ваш путь к основаниям") },
         text = { Text("True Path · 0.1.0\n\nСобирайте материалы, исследуйте связи и возвращайтесь к сохранённым результатам.\n\nСейчас доступен учебный пример с живым графом. Проверка собственных материалов появится после подключения исследовательского сервиса. История хранится на этом устройстве.") },
         confirmButton = { TextButton(onClick = { showAbout = false }) { Text("Понятно") } },
+        dismissButton = { TextButton(onClick = { model.setTheme(ThemeMode.SYSTEM); showAbout = false }) { Text("Тема как в системе") } },
     )
 }
 
@@ -94,10 +100,13 @@ fun AppShell(
     onTab: (AppTab) -> Unit,
     onAbout: () -> Unit,
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
+    onToggleTheme: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
+    val palette = LocalTruePathPalette.current
+    val dark = LocalTruePathDark.current
     Scaffold(
-        containerColor = Background,
+        containerColor = palette.background,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             Column(Modifier.statusBarsPadding()) {
@@ -106,14 +115,20 @@ fun AppShell(
                         BrandMark()
                         Text("true path", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, fontSize = 20.sp, letterSpacing = (-.7).sp)
                     }
-                    IconButton(onClick = onAbout) { Icon(Icons.Outlined.Info, "О приложении", Modifier.size(20.dp), tint = Muted) }
+                    Row {
+                        IconButton(onClick = onToggleTheme) {
+                            Icon(if (dark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                                if (dark) "Включить светлую тему" else "Включить тёмную тему", Modifier.size(20.dp), tint = palette.muted)
+                        }
+                        IconButton(onClick = onAbout) { Icon(Icons.Outlined.Info, "О приложении", Modifier.size(20.dp), tint = palette.muted) }
+                    }
                 }
-                HorizontalDivider(color = Line, thickness = .5.dp)
+                HorizontalDivider(color = palette.line, thickness = .5.dp)
             }
         },
         bottomBar = {
-            Column(Modifier.background(Paper).navigationBarsPadding()) {
-                HorizontalDivider(color = Line, thickness = .5.dp)
+            Column(Modifier.background(palette.paper).navigationBarsPadding()) {
+                HorizontalDivider(color = palette.line, thickness = .5.dp)
                 Row(Modifier.fillMaxWidth().height(68.dp)) {
                     AppTab.entries.forEach { item ->
                         Column(Modifier.weight(1f).fillMaxHeight().clickable { onTab(item) }.padding(top = 10.dp),
@@ -123,9 +138,9 @@ fun AppShell(
                                 AppTab.CHECK -> Icons.AutoMirrored.Outlined.FactCheck
                                 AppTab.GRAPH -> Icons.Outlined.Hub
                                 AppTab.HISTORY -> Icons.Outlined.History
-                            }, null, Modifier.size(22.dp), tint = if (item == tab) Accent else Muted)
-                            Text(item.title, style = MaterialTheme.typography.labelSmall, color = if (item == tab) Accent else Muted)
-                            if (item == tab) Box(Modifier.width(16.dp).height(2.dp).background(Accent))
+                            }, null, Modifier.size(22.dp), tint = if (item == tab) palette.accent else palette.muted)
+                            Text(item.title, style = MaterialTheme.typography.labelSmall, color = if (item == tab) palette.accent else palette.muted)
+                            if (item == tab) Box(Modifier.width(16.dp).height(2.dp).background(palette.accent))
                         }
                     }
                 }
@@ -140,14 +155,15 @@ fun AppShell(
 
 @Composable
 private fun BrandMark() {
+    val palette = LocalTruePathPalette.current
     Canvas(Modifier.size(26.dp)) {
         val start = Offset(size.width * .15f, size.height * .82f)
         val middle = Offset(size.width * .52f, size.height * .45f)
         val finish = Offset(size.width * .86f, size.height * .12f)
-        drawLine(Accent, start, finish, 2.5.dp.toPx())
-        drawLine(Accent, middle, Offset(size.width * .86f, size.height * .79f), 2.5.dp.toPx())
-        drawCircle(Accent, 3.dp.toPx(), start)
-        drawCircle(Accent, 3.dp.toPx(), finish)
-        drawCircle(Accent, 3.dp.toPx(), Offset(size.width * .86f, size.height * .79f))
+        drawLine(palette.accent, start, finish, 2.5.dp.toPx())
+        drawLine(palette.accent, middle, Offset(size.width * .86f, size.height * .79f), 2.5.dp.toPx())
+        drawCircle(palette.accent, 3.dp.toPx(), start)
+        drawCircle(palette.accent, 3.dp.toPx(), finish)
+        drawCircle(palette.accent, 3.dp.toPx(), Offset(size.width * .86f, size.height * .79f))
     }
 }

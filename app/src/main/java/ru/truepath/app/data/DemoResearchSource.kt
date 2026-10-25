@@ -40,16 +40,16 @@ object DemoNews {
             "Учебное объявление относится к одному маршруту и ограниченному времени.",
             "Проверьте маршрут и время поездки, прежде чем рассчитывать на бесплатный проезд.",
         ),
-    ).map { article ->
+    ).plus(LargeDemoScenario.article).map { article ->
         val imageId = when (article.id) {
             "event" -> "photo-1582192903020-8a5e59dcdcf2"
-            "science" -> "photo-1518770660439-4636190af475"
+            "science", LargeDemoScenario.ID -> "photo-1518770660439-4636190af475"
             else -> "photo-1486406146926-c627a92ad1ab"
         }
         val photo = ArticleBlock.Photo(
             "https://images.unsplash.com/$imageId?auto=format&fit=crop&w=1000&q=80",
-            when (article.id) { "event" -> "Аудитория конференции"; "science" -> "Электронная плата крупным планом"; else -> "Современная городская архитектура" },
-            "Иллюстрация. Не является фотографией описанного события.", "Unsplash", article.id,
+            when (article.id) { "event" -> "Аудитория конференции"; "science", LargeDemoScenario.ID -> "Электронная плата крупным планом"; else -> "Современная городская архитектура" },
+            "Иллюстрация. Не является фотографией описанного события.", "Unsplash", if (article.id == LargeDemoScenario.ID) "science" else article.id,
         )
         article.copy(cover = photo, body = listOf(
             ArticleBlock.Paragraph(article.summary),
@@ -57,7 +57,7 @@ object DemoNews {
             photo,
             ArticleBlock.Paragraph("При чтении обратите внимание на дату, область действия и формулировку утверждения. Фотография иллюстрирует тему и сама по себе не подтверждает новость."),
             ArticleBlock.Video(
-                "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
+                "https://media.w3.org/2010/05/bunny/trailer.mp4",
                 "Демонстрационный видеоматериал", photo,
                 "Учебный видеоблок: фрагмент Big Buck Bunny, Blender Foundation. Не связан с описанным событием.",
             ),
@@ -77,6 +77,13 @@ class DemoResearchSource : ResearchSource {
         val article = DemoNews.articles.find { it.id == session.scenarioId }
         if (article == null) {
             emit(ResearchEvent.NeedsApi("needs-api"))
+            return@flow
+        }
+        if (article.id == LargeDemoScenario.ID) {
+            LargeDemoScenario.events().forEach { event ->
+                emit(event)
+                delay(if (event is ResearchEvent.UpsertNode) 180 else 55)
+            }
             return@flow
         }
         emit(ResearchEvent.UpsertNode("node:claim", GraphNode(

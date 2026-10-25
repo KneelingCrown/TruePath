@@ -49,13 +49,14 @@ private fun previewResource(photo: ArticleBlock.Photo) = when (photo.localPrevie
 
 @Composable
 fun RemotePhoto(photo: ArticleBlock.Photo, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop) {
+    val palette = LocalTruePathPalette.current
     val context = LocalContext.current
     val preview = previewResource(photo)
     var attempt by remember(photo.url) { mutableIntStateOf(0) }
     var failed by remember(photo.url, attempt) { mutableStateOf(false) }
     var loading by remember(photo.url, attempt) { mutableStateOf(true) }
     val inspection = LocalInspectionMode.current
-    Box(modifier.background(Line.copy(alpha = .55f))) {
+    Box(modifier.background(palette.line.copy(alpha = .55f))) {
         if (preview != null) Image(painterResource(preview), photo.description, Modifier.matchParentSize(), contentScale = contentScale)
         if (!inspection && isSafeWebUrl(photo.url)) key(photo.url, attempt) {
             AsyncImage(
@@ -68,13 +69,13 @@ fun RemotePhoto(photo: ArticleBlock.Photo, modifier: Modifier = Modifier, conten
         }
         if (preview == null && (inspection || failed || !isSafeWebUrl(photo.url))) {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Outlined.ImageNotSupported, null, tint = Muted)
-                Text("Фото недоступно", style = MaterialTheme.typography.bodySmall, color = Muted)
+                Icon(Icons.Outlined.ImageNotSupported, null, tint = palette.muted)
+                Text("Фото недоступно", style = MaterialTheme.typography.bodySmall, color = palette.muted)
                 if (!inspection && isSafeWebUrl(photo.url)) TextButton(onClick = { attempt++ }) { Text("Повторить") }
             }
         } else if (preview == null && loading) CircularProgressIndicator(Modifier.align(Alignment.Center).size(23.dp), strokeWidth = 2.dp)
-        if (preview != null && failed) Surface(Modifier.align(Alignment.BottomEnd).padding(7.dp), color = Paper.copy(alpha = .9f), shape = RoundedCornerShape(3.dp)) {
-            Text("Сохранённая иллюстрация", Modifier.padding(horizontal = 6.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = Muted)
+        if (preview != null && failed) Surface(Modifier.align(Alignment.BottomEnd).padding(7.dp), color = palette.paper.copy(alpha = .9f), shape = RoundedCornerShape(3.dp)) {
+            Text("Сохранённая иллюстрация", Modifier.padding(horizontal = 6.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = palette.muted)
         }
     }
 }
@@ -96,8 +97,9 @@ fun openWebLink(context: Context, url: String, video: Boolean = false) {
 
 @Composable
 fun RichArticleText(text: String) {
+    val palette = LocalTruePathPalette.current
     val context = LocalContext.current
-    val annotated = remember(text) {
+    val annotated = remember(text, palette.accent, context) {
         buildAnnotatedString {
             var cursor = 0
             Regex("https://[^\\s<>]+") .findAll(text).forEach { match ->
@@ -105,7 +107,7 @@ fun RichArticleText(text: String) {
                 append(text.substring(cursor, match.range.first))
                 if (isSafeWebUrl(url)) withLink(LinkAnnotation.Clickable(
                     tag = url,
-                    styles = TextLinkStyles(SpanStyle(color = Accent, textDecoration = TextDecoration.Underline)),
+                    styles = TextLinkStyles(SpanStyle(color = palette.accent, textDecoration = TextDecoration.Underline)),
                     linkInteractionListener = { openWebLink(context, url) },
                 )) { append(url) } else append(url)
                 append(match.value.drop(url.length))
@@ -121,29 +123,22 @@ fun RichArticleText(text: String) {
 
 @Composable
 fun ArticleContentBlock(block: ArticleBlock, onPhoto: (ArticleBlock.Photo) -> Unit) {
+    val palette = LocalTruePathPalette.current
     val context = LocalContext.current
     when (block) {
         is ArticleBlock.Paragraph -> RichArticleText(block.text)
         is ArticleBlock.Photo -> Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             RemotePhoto(block, Modifier.fillMaxWidth().aspectRatio(1.5f).clickable { onPhoto(block) })
-            Text(listOf(block.caption, block.credit).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Muted)
+            Text(listOf(block.caption, block.credit).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = palette.muted)
         }
-        is ArticleBlock.Video -> Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).background(Ink).clickable { openWebLink(context, block.url, video = true) }, contentAlignment = Alignment.Center) {
-                block.poster?.let { RemotePhoto(it, Modifier.fillMaxSize()) }
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .25f)))
-                Surface(color = Paper, shape = RoundedCornerShape(8.dp)) { Icon(Icons.Outlined.PlayArrow, "Воспроизвести ${block.title}", Modifier.padding(13.dp).size(25.dp), tint = Ink) }
-            }
-            Text(block.title, style = MaterialTheme.typography.titleMedium)
-            if (block.caption.isNotBlank()) Text(block.caption, style = MaterialTheme.typography.bodySmall, color = Muted)
-        }
-        is ArticleBlock.Link -> Surface(color = Color.Transparent, border = androidx.compose.foundation.BorderStroke(1.dp, Line), shape = RoundedCornerShape(6.dp)) {
+        is ArticleBlock.Video -> InlineVideo(block)
+        is ArticleBlock.Link -> Surface(color = Color.Transparent, border = androidx.compose.foundation.BorderStroke(1.dp, palette.line), shape = RoundedCornerShape(6.dp)) {
             Row(Modifier.fillMaxWidth().clickable { openWebLink(context, block.url) }.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                Icon(Icons.Outlined.NorthEast, null, Modifier.size(20.dp), tint = Accent)
+                Icon(Icons.Outlined.NorthEast, null, Modifier.size(20.dp), tint = palette.accent)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(block.title, style = MaterialTheme.typography.titleMedium)
-                    if (block.description.isNotBlank()) Text(block.description, style = MaterialTheme.typography.bodySmall, color = Muted)
-                    Text(runCatching { Uri.parse(block.url).host }.getOrNull().orEmpty(), style = MaterialTheme.typography.labelSmall, color = Accent)
+                    if (block.description.isNotBlank()) Text(block.description, style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                    Text(runCatching { Uri.parse(block.url).host }.getOrNull().orEmpty(), style = MaterialTheme.typography.labelSmall, color = palette.accent)
                 }
             }
         }
@@ -152,17 +147,19 @@ fun ArticleContentBlock(block: ArticleBlock, onPhoto: (ArticleBlock.Photo) -> Un
 
 @Composable
 fun PhotoViewer(photo: ArticleBlock.Photo, onDismiss: () -> Unit) {
+    val palette = LocalTruePathPalette.current
     var zoom by remember(photo.url) { mutableFloatStateOf(1f) }
     var pan by remember(photo.url) { mutableStateOf(Offset.Zero) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogBars(dark = true)
         Box(Modifier.fillMaxSize().background(Color(0xFF111713))) {
             RemotePhoto(photo, Modifier.fillMaxSize().padding(vertical = 80.dp)
                 .pointerInput(photo.url) { detectTransformGestures { _, delta, scale, _ -> zoom = (zoom * scale).coerceIn(1f, 4f); pan = if (zoom > 1f) pan + delta else Offset.Zero } }
                 .graphicsLayer { scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y }, ContentScale.Fit)
-            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)) { Icon(Icons.Outlined.Close, "Закрыть фото", tint = Paper) }
+            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)) { Icon(Icons.Outlined.Close, "Закрыть фото", tint = Color.White) }
             Column(Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(photo.caption, style = MaterialTheme.typography.bodySmall, color = Paper)
-                if (photo.credit.isNotBlank()) Text(photo.credit, style = MaterialTheme.typography.labelSmall, color = Paper.copy(alpha = .6f))
+                Text(photo.caption, style = MaterialTheme.typography.bodySmall, color = Color.White)
+                if (photo.credit.isNotBlank()) Text(photo.credit, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .6f))
             }
         }
     }
