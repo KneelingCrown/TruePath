@@ -28,7 +28,7 @@ fun CheckScreen(state: AppState, onDraft: (String) -> Unit, onStart: () -> Unit,
     LazyColumn(Modifier.imePadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item { ScreenHeading("Начните с вопроса", "Что проверим?", "Прикрепите материал и добавьте то, в чём сомневаетесь.") }
         item { DemoBanner() }
-        item { Surface(shape = RoundedCornerShape(22.dp), color = Color.White) {
+        item { Surface(shape = RoundedCornerShape(8.dp), color = Paper) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     Icon(Icons.Outlined.ChatBubbleOutline, null, Modifier.size(20.dp), tint = Accent)
@@ -37,7 +37,7 @@ fun CheckScreen(state: AppState, onDraft: (String) -> Unit, onStart: () -> Unit,
                 OutlinedTextField(
                     value = state.draft, onValueChange = onDraft, modifier = Modifier.fillMaxWidth().heightIn(min = 185.dp),
                     placeholder = { Text("Вставьте новость, ссылку или утверждение.\n\nНапример: «Действительно ли мероприятие перенесли?»", color = Muted) },
-                    shape = RoundedCornerShape(15.dp), maxLines = 12,
+                    shape = RoundedCornerShape(6.dp), maxLines = 12,
                     supportingText = { Text("${state.draft.length} / 12 000") },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -53,12 +53,12 @@ fun CheckScreen(state: AppState, onDraft: (String) -> Unit, onStart: () -> Unit,
         } }
         items(state.attachments, key = { it.uri }) { attachment -> AttachmentRow(attachment) { onRemove(attachment.uri) } }
         item {
-            Button(onClick = onStart, enabled = state.draft.isNotBlank() || state.attachments.isNotEmpty(), modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
+            Button(onClick = onStart, enabled = state.draft.isNotBlank() || state.attachments.isNotEmpty(), modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(7.dp)) {
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(19.dp)); Spacer(Modifier.width(9.dp)); Text("Открыть в графе")
             }
         }
         item { Text("Материал сохранится на устройстве. Исследовательский сервис пока не подключён: приложение не будет придумывать результат проверки.", style = MaterialTheme.typography.bodySmall, color = Muted) }
-        item { Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFEEFAF5)) {
+        item { Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFECEFE3)) {
             Column(Modifier.padding(19.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tag("Попробуйте сейчас", Green, Icons.Outlined.PlayCircleOutline)
                 Text("Посмотрите, как рождается граф", style = MaterialTheme.typography.titleMedium)
@@ -71,7 +71,7 @@ fun CheckScreen(state: AppState, onDraft: (String) -> Unit, onStart: () -> Unit,
 
 @Composable
 private fun AttachmentRow(attachment: Attachment, onRemove: () -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(14.dp)) {
+    Surface(color = Paper, shape = RoundedCornerShape(6.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(if (attachment.mime.startsWith("image/")) Icons.Outlined.Image else Icons.AutoMirrored.Outlined.InsertDriveFile, null, tint = Accent)
             Spacer(Modifier.width(12.dp))

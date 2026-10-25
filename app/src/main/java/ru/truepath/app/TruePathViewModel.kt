@@ -33,6 +33,7 @@ data class AppState(
     val notice: String? = null,
     val historyQuery: String = "",
     val loading: Boolean = true,
+    val graphReturnTab: AppTab = AppTab.FEED,
 ) {
     val selectedSession get() = sessions.find { it.id == selectedSessionId }
     val runningSession get() = sessions.find { it.status == RunStatus.RUNNING }
@@ -76,7 +77,11 @@ class TruePathViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun selectTab(tab: AppTab) { mutableState.value = mutableState.value.copy(tab = tab) }
+    fun selectTab(tab: AppTab) {
+        mutableState.value = mutableState.value.copy(tab = tab,
+            graphReturnTab = if (tab == AppTab.GRAPH && mutableState.value.tab != AppTab.GRAPH) mutableState.value.tab else mutableState.value.graphReturnTab)
+    }
+    fun leaveGraph() { mutableState.value = mutableState.value.copy(tab = mutableState.value.graphReturnTab) }
     fun setDraft(text: String) {
         mutableState.value = mutableState.value.copy(draft = text.take(12000))
         preferences.edit { putString("draft", mutableState.value.draft) }
@@ -118,6 +123,7 @@ class TruePathViewModel(application: Application) : AndroidViewModel(application
         mutableState.value = mutableState.value.copy(
             sessions = listOf(session) + mutableState.value.sessions,
             selectedSessionId = session.id, tab = AppTab.GRAPH,
+            graphReturnTab = mutableState.value.tab.takeUnless { it == AppTab.GRAPH } ?: mutableState.value.graphReturnTab,
         )
         saves.trySend(mutableState.value.sessions)
         collect(session)
@@ -146,7 +152,9 @@ class TruePathViewModel(application: Application) : AndroidViewModel(application
         saves.trySend(mutableState.value.sessions)
     }
     fun openSession(id: String) {
-        if (mutableState.value.sessions.any { it.id == id }) mutableState.value = mutableState.value.copy(selectedSessionId = id, tab = AppTab.GRAPH)
+        if (mutableState.value.sessions.any { it.id == id }) mutableState.value = mutableState.value.copy(
+            selectedSessionId = id, tab = AppTab.GRAPH,
+            graphReturnTab = mutableState.value.tab.takeUnless { it == AppTab.GRAPH } ?: mutableState.value.graphReturnTab)
     }
     fun stop() {
         val current = mutableState.value.selectedSession ?: return

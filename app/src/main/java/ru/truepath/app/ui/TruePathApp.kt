@@ -5,6 +5,8 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.FactCheck
@@ -47,55 +49,22 @@ fun TruePathApp(model: TruePathViewModel) {
         state.notice?.let { snackbar.showSnackbar(it, withDismissAction = true); model.dismissNotice() }
     }
 
-    Scaffold(
-        containerColor = Background,
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    BrandMark()
-                    Text("True Path", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                } },
-                actions = { IconButton(onClick = { showAbout = true }) { Icon(Icons.Outlined.Info, "О приложении", tint = Muted) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background),
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
-                AppTab.entries.forEach { tab ->
-                    val icon = when (tab) {
-                        AppTab.FEED -> Icons.Outlined.Newspaper
-                        AppTab.CHECK -> Icons.AutoMirrored.Outlined.FactCheck
-                        AppTab.GRAPH -> Icons.Outlined.Hub
-                        AppTab.HISTORY -> Icons.Outlined.History
-                    }
-                    NavigationBarItem(
-                        selected = state.tab == tab, onClick = { model.selectTab(tab) },
-                        icon = { Icon(icon, null, Modifier.size(23.dp)) },
-                        label = { Text(tab.title, fontSize = 11.sp) },
-                        colors = NavigationBarItemDefaults.colors(selectedIconColor = Accent, selectedTextColor = Accent,
-                            indicatorColor = Accent.copy(alpha = .09f), unselectedIconColor = Muted, unselectedTextColor = Muted),
-                    )
-                }
-            }
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
-            if (state.loading) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            } else Box(Modifier.fillMaxHeight().widthIn(max = 720.dp)) {
-                when (state.tab) {
-                    AppTab.FEED -> FeedScreen(state, model::setTopic, model::startArticle)
-                    AppTab.CHECK -> CheckScreen(
-                        state, model::setDraft, model::startDraft,
-                        onAttach = { picker.launch(arrayOf("image/*", "video/*", "audio/*", "text/*", "application/pdf")) },
-                        onRemove = model::removeAttachment,
-                        onExample = { model.startArticle(ru.truepath.app.data.DemoNews.articles.first()) },
-                    )
-                    AppTab.GRAPH -> GraphScreen(state.selectedSession, model::stop, model::resume, { model.selectTab(AppTab.CHECK) })
-                    AppTab.HISTORY -> HistoryScreen(state, model::setHistoryQuery, model::openSession, model::deleteSession, { model.selectTab(AppTab.CHECK) })
-                }
-            }
+    if (state.tab == AppTab.GRAPH && !state.loading) {
+        Box(Modifier.fillMaxSize()) {
+            GraphScreen(state.selectedSession, model::stop, model::resume,
+                { model.selectTab(AppTab.CHECK) }, model::leaveGraph)
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+        }
+    } else AppShell(state.tab, model::selectTab, { showAbout = true }, snackbar) {
+        if (state.loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        else when (state.tab) {
+            AppTab.FEED -> FeedScreen(state, model::setTopic, model::startArticle)
+            AppTab.CHECK -> CheckScreen(state, model::setDraft, model::startDraft,
+                onAttach = { picker.launch(arrayOf("image/*", "video/*", "audio/*", "text/*", "application/pdf")) },
+                onRemove = model::removeAttachment,
+                onExample = { model.startArticle(ru.truepath.app.data.DemoNews.articles.first()) })
+            AppTab.HISTORY -> HistoryScreen(state, model::setHistoryQuery, model::openSession, model::deleteSession, { model.selectTab(AppTab.CHECK) })
+            AppTab.GRAPH -> Unit
         }
     }
     if (showAbout) AlertDialog(
@@ -107,16 +76,65 @@ fun TruePathApp(model: TruePathViewModel) {
 }
 
 @Composable
+fun AppShell(
+    tab: AppTab,
+    onTab: (AppTab) -> Unit,
+    onAbout: () -> Unit,
+    snackbar: SnackbarHostState = remember { SnackbarHostState() },
+    content: @Composable () -> Unit,
+) {
+    Scaffold(
+        containerColor = Background,
+        snackbarHost = { SnackbarHost(snackbar) },
+        topBar = {
+            Column(Modifier.statusBarsPadding()) {
+                Row(Modifier.fillMaxWidth().height(59.dp).padding(start = 22.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        BrandMark()
+                        Text("true path", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, fontSize = 20.sp, letterSpacing = (-.7).sp)
+                    }
+                    IconButton(onClick = onAbout) { Icon(Icons.Outlined.Info, "О приложении", Modifier.size(20.dp), tint = Muted) }
+                }
+                HorizontalDivider(color = Line, thickness = .5.dp)
+            }
+        },
+        bottomBar = {
+            Column(Modifier.background(Paper).navigationBarsPadding()) {
+                HorizontalDivider(color = Line, thickness = .5.dp)
+                Row(Modifier.fillMaxWidth().height(68.dp)) {
+                    AppTab.entries.forEach { item ->
+                        Column(Modifier.weight(1f).fillMaxHeight().clickable { onTab(item) }.padding(top = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Icon(when (item) {
+                                AppTab.FEED -> Icons.Outlined.Newspaper
+                                AppTab.CHECK -> Icons.AutoMirrored.Outlined.FactCheck
+                                AppTab.GRAPH -> Icons.Outlined.Hub
+                                AppTab.HISTORY -> Icons.Outlined.History
+                            }, null, Modifier.size(22.dp), tint = if (item == tab) Accent else Muted)
+                            Text(item.title, style = MaterialTheme.typography.labelSmall, color = if (item == tab) Accent else Muted)
+                            if (item == tab) Box(Modifier.width(16.dp).height(2.dp).background(Accent))
+                        }
+                    }
+                }
+            }
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            Box(Modifier.fillMaxHeight().widthIn(max = 720.dp)) { content() }
+        }
+    }
+}
+
+@Composable
 private fun BrandMark() {
-    Canvas(Modifier.size(31.dp)) {
-        drawRoundRect(Accent, cornerRadius = androidx.compose.ui.geometry.CornerRadius(9.dp.toPx()))
-        val a = Offset(size.width * .28f, size.height * .73f)
-        val b = Offset(size.width * .5f, size.height * .48f)
-        val c = Offset(size.width * .74f, size.height * .27f)
-        val d = Offset(size.width * .73f, size.height * .72f)
-        drawLine(Color.White, a, c, 2.dp.toPx())
-        drawLine(Color.White, b, d, 2.dp.toPx())
-        listOf(a, c).forEach { drawCircle(Color.White, 3.dp.toPx(), it) }
-        drawCircle(Color(0xFF7DE4C5), 3.dp.toPx(), d)
+    Canvas(Modifier.size(26.dp)) {
+        val start = Offset(size.width * .15f, size.height * .82f)
+        val middle = Offset(size.width * .52f, size.height * .45f)
+        val finish = Offset(size.width * .86f, size.height * .12f)
+        drawLine(Accent, start, finish, 2.5.dp.toPx())
+        drawLine(Accent, middle, Offset(size.width * .86f, size.height * .79f), 2.5.dp.toPx())
+        drawCircle(Accent, 3.dp.toPx(), start)
+        drawCircle(Accent, 3.dp.toPx(), finish)
+        drawCircle(Accent, 3.dp.toPx(), Offset(size.width * .86f, size.height * .79f))
     }
 }

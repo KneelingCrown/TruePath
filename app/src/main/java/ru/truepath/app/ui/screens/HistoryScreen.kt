@@ -29,7 +29,7 @@ fun HistoryScreen(state: AppState, onQuery: (String) -> Unit, onOpen: (String) -
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { ScreenHeading("Память ваших исследований", "История", "Все основания сохранены. Возвращайтесь к ним в любой момент.") }
         if (state.sessions.isNotEmpty()) item {
-            OutlinedTextField(state.historyQuery, onQuery, Modifier.fillMaxWidth(), placeholder = { Text("Найти исследование") }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, singleLine = true, shape = RoundedCornerShape(15.dp))
+            OutlinedTextField(state.historyQuery, onQuery, Modifier.fillMaxWidth(), placeholder = { Text("Найти исследование") }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, singleLine = true, shape = RoundedCornerShape(6.dp))
         }
         if (state.sessions.isEmpty()) item {
             EmptyState(Icons.Outlined.History, "Здесь начнётся ваша история", "Сохранённые материалы и графы появятся после первого исследования.", "Добавить материал", onNew)
@@ -37,7 +37,7 @@ fun HistoryScreen(state: AppState, onQuery: (String) -> Unit, onOpen: (String) -
             Text("По этому запросу ничего не найдено", style = MaterialTheme.typography.bodyMedium, color = Muted, modifier = Modifier.padding(vertical = 24.dp))
         }
         items(sessions, key = { it.id }) { session ->
-            Surface(shape = RoundedCornerShape(20.dp), color = Color.White) {
+            Surface(shape = RoundedCornerShape(8.dp), color = Paper) {
                 Column(Modifier.fillMaxWidth().clickable { onOpen(session.id) }.padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Tag(session.status.label, when (session.status) {

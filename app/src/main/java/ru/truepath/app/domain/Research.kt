@@ -6,7 +6,7 @@ enum class TrustStatus(val label: String) {
 }
 
 enum class NodeKind(val label: String) {
-    MATERIAL("Материал"), CLAIM("Утверждение"), SOURCE("Источник"), EVIDENCE("Доказательство")
+    MATERIAL("Материал"), CLAIM("Утверждение"), SOURCE("Источник"), EVIDENCE("Доказательство"), CONCLUSION("Вывод")
 }
 
 enum class RunStatus(val label: String) {

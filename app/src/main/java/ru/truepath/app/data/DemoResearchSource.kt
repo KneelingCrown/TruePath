@@ -9,9 +9,11 @@ data class NewsArticle(
     val id: String, val topic: String, val title: String, val summary: String,
     val sources: Int, val minutesAgo: Int, val sourceText: String,
     val claim: String, val evidence: String, val conclusion: String, val planB: String,
+    val cover: ArticleBlock.Photo? = null,
+    val body: List<ArticleBlock> = emptyList(),
 )
 
-/** Fictional editorial fixtures. No network requests or genuine fact-checking take place. */
+/** Fictional editorial fixtures; only illustrations load remotely, not research. */
 object DemoNews {
     val articles = listOf(
         NewsArticle(
@@ -38,7 +40,30 @@ object DemoNews {
             "Учебное объявление относится к одному маршруту и ограниченному времени.",
             "Проверьте маршрут и время поездки, прежде чем рассчитывать на бесплатный проезд.",
         ),
-    )
+    ).map { article ->
+        val imageId = when (article.id) {
+            "event" -> "photo-1582192903020-8a5e59dcdcf2"
+            "science" -> "photo-1518770660439-4636190af475"
+            else -> "photo-1486406146926-c627a92ad1ab"
+        }
+        val photo = ArticleBlock.Photo(
+            "https://images.unsplash.com/$imageId?auto=format&fit=crop&w=1000&q=80",
+            when (article.id) { "event" -> "Аудитория конференции"; "science" -> "Электронная плата крупным планом"; else -> "Современная городская архитектура" },
+            "Иллюстрация. Не является фотографией описанного события.", "Unsplash", article.id,
+        )
+        article.copy(cover = photo, body = listOf(
+            ArticleBlock.Paragraph(article.summary),
+            ArticleBlock.Paragraph("Это вымышленная публикация для знакомства с True Path. Короткий заголовок может потерять важное ограничение. Проверка помогает вернуться к полному контексту."),
+            photo,
+            ArticleBlock.Paragraph("При чтении обратите внимание на дату, область действия и формулировку утверждения. Фотография иллюстрирует тему и сама по себе не подтверждает новость."),
+            ArticleBlock.Video(
+                "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
+                "Демонстрационный видеоматериал", photo,
+                "Учебный видеоблок: фрагмент Big Buck Bunny, Blender Foundation. Не связан с описанным событием.",
+            ),
+            ArticleBlock.Link("https://github.com/KneelingCrown/TruePath", "Проект True Path", "Пример внешней ссылки в тексте публикации"),
+        ))
+    }
 }
 
 interface ResearchSource {

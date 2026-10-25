@@ -4,6 +4,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Host-side rendering is opt-in and never packages an APK.
+if (providers.gradleProperty("screenshots").isPresent) {
+    apply(plugin = "app.cash.paparazzi")
+    android.sourceSets["test"].java.srcDir("src/screenshot/java")
+}
+
 android {
     namespace = "ru.truepath.app"
     compileSdk = 36
@@ -31,6 +37,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
