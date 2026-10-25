@@ -95,17 +95,12 @@ fun NewsReader(article: NewsArticle, onClose: () -> Unit, onCheck: () -> Unit) {
     Scaffold(
         containerColor = Paper,
         topBar = {
-            Row(Modifier.fillMaxWidth().statusBarsPadding().height(58.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().height(64.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Закрыть новость") }
-                Text("TRUE PATH / ЧТЕНИЕ", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 8.dp), color = Muted)
-            }
-        },
-        bottomBar = {
-            Column(Modifier.background(Paper).navigationBarsPadding().padding(horizontal = 22.dp, vertical = 12.dp)) {
-                Button(onClick = onCheck, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(6.dp)) {
-                    Text("Проверить публикацию"); Spacer(Modifier.weight(1f)); Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(19.dp))
+                Text("TRUE PATH / ЧТЕНИЕ", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.weight(1f).padding(horizontal = 7.dp))
+                Button(onClick = onCheck, shape = RoundedCornerShape(6.dp), contentPadding = PaddingValues(horizontal = 13.dp, vertical = 10.dp)) {
+                    Text("Проверить"); Spacer(Modifier.width(7.dp)); Icon(Icons.Outlined.NorthEast, null, Modifier.size(15.dp))
                 }
-                Text("Запустится учебный пример исследования", style = MaterialTheme.typography.bodySmall, color = Muted, modifier = Modifier.padding(top = 7.dp))
             }
         },
     ) { padding ->

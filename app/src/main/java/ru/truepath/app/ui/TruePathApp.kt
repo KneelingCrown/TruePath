@@ -4,6 +4,12 @@ import android.content.Intent
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,7 +63,14 @@ fun TruePathApp(model: TruePathViewModel) {
         }
     } else AppShell(state.tab, model::selectTab, { showAbout = true }, snackbar) {
         if (state.loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        else when (state.tab) {
+        else AnimatedContent(
+            targetState = state.tab,
+            transitionSpec = {
+                (fadeIn(tween(200, delayMillis = 60)) + slideInVertically(tween(240)) { it / 35 })
+                    .togetherWith(fadeOut(tween(100)))
+            },
+            label = "main-section",
+        ) { tab -> when (tab) {
             AppTab.FEED -> FeedScreen(state, model::setTopic, model::startArticle)
             AppTab.CHECK -> CheckScreen(state, model::setDraft, model::startDraft,
                 onAttach = { picker.launch(arrayOf("image/*", "video/*", "audio/*", "text/*", "application/pdf")) },
@@ -65,7 +78,7 @@ fun TruePathApp(model: TruePathViewModel) {
                 onExample = { model.startArticle(ru.truepath.app.data.DemoNews.articles.first()) })
             AppTab.HISTORY -> HistoryScreen(state, model::setHistoryQuery, model::openSession, model::deleteSession, { model.selectTab(AppTab.CHECK) })
             AppTab.GRAPH -> Unit
-        }
+        } }
     }
     if (showAbout) AlertDialog(
         onDismissRequest = { showAbout = false },

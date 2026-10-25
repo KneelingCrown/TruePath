@@ -1,6 +1,8 @@
 package ru.truepath.app.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,99 +19,82 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import ru.truepath.app.domain.*
 import ru.truepath.app.ui.components.*
 import ru.truepath.app.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GraphScreen(
     session: ResearchSession?, onStop: () -> Unit, onResume: () -> Unit, onNew: () -> Unit, onBack: () -> Unit,
-    drawer: DrawerState = rememberDrawerState(DrawerValue.Closed),
+    initialMenuOpen: Boolean = false,
 ) {
-    val scope = rememberCoroutineScope()
+    var menuOpen by remember(session?.id) { mutableStateOf(initialMenuOpen) }
     var selectedId by remember(session?.id) { mutableStateOf<String?>(null) }
     var infoTab by remember(session?.id) { mutableIntStateOf(0) }
     var focusId by remember(session?.id) { mutableStateOf<String?>(null) }
     var focusTick by remember(session?.id) { mutableIntStateOf(0) }
     val graph = session?.presentedGraph()
-    BackHandler { if (drawer.isOpen) scope.launch { drawer.close() } else onBack() }
+    BackHandler { if (menuOpen) menuOpen = false else onBack() }
     fun openNode(id: String) {
         selectedId = id
         infoTab = if (id == PresentedGraph.CONCLUSION_ID) 0 else 1
-        scope.launch { drawer.open() }
+        menuOpen = true
     }
-    // ModalNavigationDrawer follows layout direction; only its placement is RTL.
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        ModalNavigationDrawer(
-            drawerState = drawer,
-            gesturesEnabled = drawer.isOpen,
-            scrimColor = Ink.copy(alpha = .25f),
-            drawerContent = {
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    ModalDrawerSheet(
-                        // Keep the sheet hidden while its initial anchors are measured.
-                        modifier = Modifier.fillMaxWidth(.91f).widthIn(max = 420.dp).graphicsLayer {
-                            alpha = if (drawer.isClosed && drawer.targetValue == DrawerValue.Closed) 0f else 1f
-                        },
-                        drawerContainerColor = Paper, drawerShape = RoundedCornerShape(0.dp),
-                    ) {
-                        Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 12.dp, top = 10.dp, bottom = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Исследование", style = MaterialTheme.typography.headlineMedium)
-                            IconButton(onClick = { scope.launch { drawer.close() } }) { Icon(Icons.Outlined.Close, "Закрыть материалы") }
-                        }
-                        TabRow(selectedTabIndex = infoTab, containerColor = Paper, contentColor = Accent) {
-                            listOf("Итог", "Материалы", "Сведения").forEachIndexed { index, title ->
-                                Tab(selected = infoTab == index, onClick = { infoTab = index; selectedId = null }, text = { Text(title, style = MaterialTheme.typography.labelLarge) })
-                            }
-                        }
-                        if (session != null && graph != null) {
-                            GraphInformation(session, graph, infoTab, selectedId, onSelect = { selectedId = it }, onFocus = {
-                                focusId = it; focusTick++; scope.launch { drawer.close() }
-                            }, onStop = onStop, onResume = onResume)
-                        }
-                    }
-                }
-            },
+    Box(Modifier.fillMaxSize().background(Background)) {
+        if (session != null && graph != null) {
+            GraphBoard(session, graph, selectedId, focusId, focusTick,
+                Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(top = 90.dp, bottom = 65.dp), ::openNode)
+        } else Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
+            EmptyState(Icons.Outlined.Hub, "Начните с материала", "Здесь появится путь от новости к её источникам и выводу.", "Добавить материал", onNew)
+        }
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            WorkspaceButton("Вернуться", Icons.AutoMirrored.Outlined.ArrowBack, onBack)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("TRUE PATH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(if (session?.scenarioId != null) "УЧЕБНОЕ ИССЛЕДОВАНИЕ" else "ИССЛЕДОВАНИЕ", style = MaterialTheme.typography.labelSmall, color = Muted)
+            }
+            WorkspaceButton("Материалы и сведения", Icons.Outlined.Menu, { menuOpen = true })
+        }
+        if (session != null) {
+            Row(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                WorkspaceButton("Показать весь путь", Icons.Outlined.CenterFocusStrong, { focusId = null; focusTick++ })
+                if (session.status == RunStatus.RUNNING) {
+                    CircularProgressIndicator(Modifier.size(12.dp), color = Accent, strokeWidth = 1.5.dp)
+                    Text(session.stage, style = MaterialTheme.typography.bodySmall, color = Muted, modifier = Modifier.weight(1f), maxLines = 2)
+                } else Text(if (session.status == RunStatus.COMPLETE) "Вывод готов" else session.status.label,
+                    style = MaterialTheme.typography.bodySmall, color = Muted, modifier = Modifier.weight(1f))
+                if (graph?.conclusion != null) TextButton(onClick = { openNode(PresentedGraph.CONCLUSION_ID) }) { Text("Читать вывод", color = Accent) }
+            }
+        }
+
+        // Closed panels leave no invisible layer over the interactive graph.
+        AnimatedVisibility(menuOpen, enter = fadeIn(tween(220)), exit = fadeOut(tween(180))) {
+            Box(Modifier.fillMaxSize().background(Ink.copy(alpha = .25f)).clickable { menuOpen = false })
+        }
+        AnimatedVisibility(
+            visible = menuOpen, modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+            enter = slideInHorizontally(tween(280)) { it } + fadeIn(tween(180)),
+            exit = slideOutHorizontally(tween(230)) { it } + fadeOut(tween(180)),
         ) {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Box(Modifier.fillMaxSize().background(Background)) {
+            Surface(Modifier.fillMaxHeight().widthIn(max = 420.dp).fillMaxWidth(.91f), color = Paper, shadowElevation = 12.dp) {
+                Column(Modifier.statusBarsPadding().navigationBarsPadding()) {
+                    Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 12.dp, top = 10.dp, bottom = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Исследование", style = MaterialTheme.typography.headlineMedium)
+                        IconButton(onClick = { menuOpen = false }) { Icon(Icons.Outlined.Close, "Закрыть материалы") }
+                    }
+                    TabRow(selectedTabIndex = infoTab, containerColor = Paper, contentColor = Accent) {
+                        listOf("Итог", "Материалы", "Сведения").forEachIndexed { index, title ->
+                            Tab(selected = infoTab == index, onClick = { infoTab = index; selectedId = null }, text = { Text(title, style = MaterialTheme.typography.labelLarge) })
+                        }
+                    }
                     if (session != null && graph != null) {
-                        GraphBoard(session, graph, selectedId, focusId, focusTick,
-                            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(top = 90.dp, bottom = 65.dp), ::openNode)
-                    } else Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
-                        EmptyState(Icons.Outlined.Hub, "Начните с материала", "Здесь появится путь от новости к её источникам и выводу.", "Добавить материал", onNew)
-                    }
-                    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        WorkspaceButton("Вернуться", Icons.AutoMirrored.Outlined.ArrowBack, onBack)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("TRUE PATH", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                            Text(if (session?.scenarioId != null) "УЧЕБНОЕ ИССЛЕДОВАНИЕ" else "ИССЛЕДОВАНИЕ", style = MaterialTheme.typography.labelSmall, color = Muted)
-                        }
-                        WorkspaceButton("Материалы и сведения", Icons.Outlined.Menu, { scope.launch { drawer.open() } })
-                    }
-                    if (session != null) {
-                        Row(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            WorkspaceButton("Показать весь путь", Icons.Outlined.CenterFocusStrong, { focusId = null; focusTick++ })
-                            if (session.status == RunStatus.RUNNING) {
-                                CircularProgressIndicator(Modifier.size(12.dp), color = Accent, strokeWidth = 1.5.dp)
-                                Text(session.stage, style = MaterialTheme.typography.bodySmall, color = Muted, modifier = Modifier.weight(1f), maxLines = 2)
-                            } else {
-                                Text(if (session.status == RunStatus.COMPLETE) "Вывод готов" else session.status.label,
-                                    style = MaterialTheme.typography.bodySmall, color = Muted, modifier = Modifier.weight(1f))
-                            }
-                            if (graph?.conclusion != null) TextButton(onClick = { openNode(PresentedGraph.CONCLUSION_ID) }) {
-                                Text("Читать вывод", color = Accent)
-                            }
-                        }
+                        GraphInformation(session, graph, infoTab, selectedId, onSelect = { selectedId = it }, onFocus = {
+                            focusId = it; focusTick++; menuOpen = false
+                        }, onStop = onStop, onResume = onResume)
                     }
                 }
             }

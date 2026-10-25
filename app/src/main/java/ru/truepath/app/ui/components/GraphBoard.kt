@@ -1,6 +1,12 @@
 package ru.truepath.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +19,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -22,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -46,25 +54,30 @@ fun GraphBoard(
     var zoom by remember(session.id) { mutableFloatStateOf(1f) }
     var pan by remember(session.id) { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
-    BoxWithConstraints(modifier.background(GraphBackground)) {
+    val inspection = LocalInspectionMode.current
+    BoxWithConstraints(modifier.background(GraphBackground).clipToBounds()) {
         val width = with(density) { maxWidth.toPx() }
         // Keep endpoint cards apart on short screens; the overview fits the world.
         val availableHeight = with(density) { maxHeight.toPx() }
         val height = maxOf(availableHeight, with(density) { 680.dp.toPx() })
         val overviewZoom = (availableHeight / height).coerceAtMost(1f)
         val endpointWidth = minOf(maxWidth - 38.dp, 318.dp)
+        fun bounded(value: Offset, scale: Float) = Offset(
+            boundedGraphPan(value.x, width, width, scale),
+            boundedGraphPan(value.y, height, availableHeight, scale),
+        )
         LaunchedEffect(session.id, focusTick, width, availableHeight) {
             val target = graph.nodes.find { it.id == focusNodeId }
             if (target == null) { zoom = overviewZoom; pan = Offset(width * (1 - zoom) / 2, 0f) }
             else {
                 zoom = 1.1f
-                pan = Offset(width / 2 - target.x * width * zoom, availableHeight / 2 - target.y * height * zoom)
+                pan = bounded(Offset(width / 2 - target.x * width * zoom, availableHeight / 2 - target.y * height * zoom), zoom)
             }
         }
-        Box(Modifier.fillMaxSize().pointerInput(session.id) {
+        Box(Modifier.fillMaxSize().pointerInput(session.id, width, availableHeight) {
             detectTransformGestures { centroid, delta, scale, _ ->
-                val nextZoom = (zoom * scale).coerceIn(.55f, 2.6f)
-                pan = centroid - (centroid - pan) * (nextZoom / zoom) + delta
+                val nextZoom = (zoom * scale).coerceIn(minOf(.55f, overviewZoom), 2.6f)
+                pan = bounded(centroid - (centroid - pan) * (nextZoom / zoom) + delta, nextZoom)
                 zoom = nextZoom
             }
         }) {
@@ -103,20 +116,25 @@ fun GraphBoard(
                         drawCircle(if (highlighted) Accent else Color(0xFFB8BEB0), 2.dp.toPx(), middle)
                     }
                 }
-                graph.nodes.forEach { node ->
+                graph.nodes.forEach { node -> key(node.id) {
                     val endpoint = node.kind == NodeKind.MATERIAL || node.kind == NodeKind.CONCLUSION
                     val nodeWidth = if (endpoint) endpointWidth else 112.dp
                     val nodeHeight = when (node.kind) { NodeKind.MATERIAL -> 106.dp; NodeKind.CONCLUSION -> 138.dp; else -> 90.dp }
                     val left = with(density) { (node.x * width - nodeWidth.toPx() / 2).roundToInt() }
                     val top = with(density) { (node.y * height - nodeHeight.toPx() / 2).roundToInt() }
-                    Box(Modifier.offset { IntOffset(left, top) }.width(nodeWidth).height(nodeHeight)) {
+                    val appearance = remember { MutableTransitionState(inspection).apply { targetState = true } }
+                    AnimatedVisibility(
+                        visibleState = appearance,
+                        enter = fadeIn(tween(240)) + scaleIn(tween(320), initialScale = .88f),
+                        modifier = Modifier.offset { IntOffset(left, top) }.width(nodeWidth).height(nodeHeight),
+                    ) {
                         when (node.kind) {
                             NodeKind.MATERIAL -> StartNode(node, onClick = { onNode(node.id) })
                             NodeKind.CONCLUSION -> ConclusionNode(node, onClick = { onNode(node.id) })
                             else -> EvidenceNode(node, node.id == selectedId, onClick = { onNode(node.id) })
                         }
                     }
-                }
+                } }
             }
         }
     }
@@ -151,14 +169,15 @@ private fun ConclusionNode(node: GraphNode, onClick: () -> Unit) {
 
 @Composable
 private fun EvidenceNode(node: GraphNode, selected: Boolean, onClick: () -> Unit) {
+    val statusColor by animateColorAsState(node.status.tint(), tween(360), label = "node-status")
     Column(Modifier.fillMaxSize().clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Surface(shape = CircleShape, color = if (selected) Accent else Paper, border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) Accent else Line)) {
+        Surface(shape = CircleShape, color = statusColor, border = if (selected) BorderStroke(2.dp, Ink) else null) {
             Box(Modifier.size(43.dp), contentAlignment = Alignment.Center) {
                 Icon(when (node.kind) {
                     NodeKind.CLAIM -> Icons.Outlined.QuestionAnswer
                     NodeKind.SOURCE -> Icons.Outlined.Description
                     else -> Icons.Outlined.FormatQuote
-                }, null, Modifier.size(18.dp), tint = if (selected) Paper else node.status.tint())
+                }, null, Modifier.size(18.dp), tint = Paper)
             }
         }
         Text(node.label, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, color = Ink)

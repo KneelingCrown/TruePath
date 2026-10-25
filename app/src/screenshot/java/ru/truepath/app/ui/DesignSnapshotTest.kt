@@ -4,8 +4,6 @@ import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
 import org.junit.Rule
 import org.junit.Test
 import ru.truepath.app.AppState
@@ -48,11 +46,15 @@ class DesignSnapshotTest {
     }
 
     @Test fun graphConclusion() = paparazzi.snapshot {
-        TruePathTheme { GraphScreen(completeSession(), {}, {}, {}, {}) }
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme { GraphScreen(completeSession(), {}, {}, {}, {}) }
+        }
     }
 
     @Test fun graphAnswer() = paparazzi.snapshot {
-        TruePathTheme { GraphScreen(completeSession(), {}, {}, {}, {}, rememberDrawerState(DrawerValue.Open)) }
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme { GraphScreen(completeSession(), {}, {}, {}, {}, initialMenuOpen = true) }
+        }
     }
 
     @Test fun history() = paparazzi.snapshot {

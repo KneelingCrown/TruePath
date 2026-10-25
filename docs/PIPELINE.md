@@ -39,4 +39,4 @@ DevOps/Pipeline при разборе каждого нового коммита
 ./gradlew :app:verifyPaparazziDebug -Pscreenshots
 ```
 
-Paparazzi сравнивает 6 эталонов из `app/src/test/snapshots/images/`. Перед намеренным обновлением дизайна используют `:app:recordPaparazziDebug -Pscreenshots` и визуально просматривают каждый изменённый эталон. Этот режим пока не добавлен в GitHub Actions и не заменяет device-проверки. Обычный CI запускает 13 модульных тестов, компиляцию и Lint.
+Paparazzi сравнивает 6 эталонов из `app/src/test/snapshots/images/`. Перед намеренным обновлением дизайна используют `:app:recordPaparazziDebug -Pscreenshots` и визуально просматривают каждый изменённый эталон. Этот режим пока не добавлен в GitHub Actions и не заменяет device-проверки. Обычный CI запускает 16 модульных тестов, компиляцию и Lint.
