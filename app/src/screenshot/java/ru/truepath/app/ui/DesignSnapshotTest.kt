@@ -2,6 +2,7 @@ package ru.truepath.app.ui
 
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
 import org.junit.Rule
@@ -9,6 +10,7 @@ import org.junit.Test
 import ru.truepath.app.AppState
 import ru.truepath.app.AppTab
 import ru.truepath.app.data.DemoNews
+import ru.truepath.app.data.LargeDemoScenario
 import ru.truepath.app.domain.*
 import ru.truepath.app.ui.screens.*
 import ru.truepath.app.ui.theme.TruePathTheme
@@ -78,4 +80,71 @@ class DesignSnapshotTest {
             }
         }
     }
+
+    @Test fun feedDark() = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme(darkTheme = true) { AppShell(AppTab.FEED, {}, {}) { FeedScreen(AppState(loading = false), {}, {}) } }
+        }
+    }
+
+    @Test fun feedTopicUnderline() = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme { AppShell(AppTab.FEED, {}, {}) { FeedScreen(AppState(loading = false, topic = "События"), {}, {}) } }
+        }
+    }
+
+    @Test fun graphDark() = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme(darkTheme = true) { GraphScreen(completeSession(), {}, {}, {}, {}) }
+        }
+    }
+
+    @Test fun graphAnswerDark() = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme(darkTheme = true) { GraphScreen(completeSession(), {}, {}, {}, {}, initialMenuOpen = true) }
+        }
+    }
+
+    @Test fun graphLarge() = paparazzi.snapshot {
+        val start = ResearchSession("large", LargeDemoScenario.article.title, "Учебный материал", 0,
+            scenarioId = LargeDemoScenario.ID, nodes = listOf(GraphNode("material", "Материал", NodeKind.MATERIAL)))
+        val result = LargeDemoScenario.events().fold(start, GraphReducer::apply)
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme { GraphScreen(result, {}, {}, {}, {}) }
+        }
+    }
+
+    @Test fun articleFooter() = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme { NewsReader(article, {}, {}, rememberLazyListState(initialFirstVisibleItemIndex = article.body.size)) }
+        }
+    }
+
+    @Test fun articleDark() = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme(darkTheme = true) { NewsReader(article, {}, {}) }
+        }
+    }
+
+    @Test fun checkDark() = paparazzi.snapshot {
+        TruePathTheme(darkTheme = true) { AppShell(AppTab.CHECK, {}, {}) { CheckScreen(AppState(loading = false), {}, {}, {}, {}, {}) } }
+    }
+
+    @Test fun historyDark() = paparazzi.snapshot {
+        TruePathTheme(darkTheme = true) {
+            AppShell(AppTab.HISTORY, {}, {}) { HistoryScreen(AppState(loading = false, sessions = listOf(completeSession())), {}, {}, {}, {}) }
+        }
+    }
+
+    @Test fun graphMaterials() = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme { GraphScreen(completeSession(), {}, {}, {}, {}, initialMenuOpen = true, initialInfoTab = 1) }
+        }
+    }
+    @Test fun graphMaterialsDark() = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            TruePathTheme(darkTheme = true) { GraphScreen(completeSession(), {}, {}, {}, {}, initialMenuOpen = true, initialInfoTab = 1) }
+        }
+    }
+
 }

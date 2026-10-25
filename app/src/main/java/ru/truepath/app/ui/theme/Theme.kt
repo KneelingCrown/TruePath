@@ -1,36 +1,66 @@
 package ru.truepath.app.ui.theme
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-val Ink = Color(0xFF202925)
-val Muted = Color(0xFF697168)
-val Accent = Color(0xFF214D3E)
-val Background = Color(0xFFF6F4EE)
-val Paper = Color(0xFFFFFEFA)
-val Line = Color(0xFFDDDCD3)
-val Green = Color(0xFF28754D)
-val Amber = Color(0xFF946922)
-val Red = Color(0xFFAA493D)
-val Lime = Color(0xFFDDEA9B)
-val GraphBackground = Background
+@Immutable
+data class TruePathPalette(
+    val ink: Color, val muted: Color, val accent: Color,
+    val background: Color, val paper: Color, val line: Color,
+    val green: Color, val amber: Color, val red: Color, val lime: Color,
+    val onAccent: Color, val exampleSurface: Color, val graphEdge: Color,
+) { val graphBackground get() = background }
 
-private val colors = lightColorScheme(
-    primary = Accent, onPrimary = Paper,
-    secondary = Green, background = Background, onBackground = Ink,
-    surface = Paper, onSurface = Ink, surfaceVariant = Color(0xFFECEBE3),
-    onSurfaceVariant = Muted, outline = Color(0xFFC6C9BE), outlineVariant = Line,
-    surfaceTint = Accent, primaryContainer = Color(0xFFE4EADC), onPrimaryContainer = Accent,
-    secondaryContainer = Color(0xFFECEFE3), onSecondaryContainer = Ink, error = Red,
+private val light = TruePathPalette(
+    Color(0xFF202925), Color(0xFF697168), Color(0xFF214D3E),
+    Color(0xFFF6F4EE), Color(0xFFFFFEFA), Color(0xFFDDDCD3),
+    Color(0xFF28754D), Color(0xFF946922), Color(0xFFAA493D), Color(0xFFDDEA9B),
+    Color(0xFFFFFEFA), Color(0xFFECEFE3), Color(0xFFB8BEB0),
 )
+private val dark = TruePathPalette(
+    Color(0xFFE7EAE0), Color(0xFFA5B0A3), Color(0xFFB0D5B8),
+    Color(0xFF111914), Color(0xFF1A241D), Color(0xFF344137),
+    Color(0xFF8CD4A5), Color(0xFFE8C27D), Color(0xFFF29A8B), Color(0xFFDDEA9B),
+    Color(0xFF143424), Color(0xFF25362A), Color(0xFF516456),
+)
+val LocalTruePathPalette = staticCompositionLocalOf { light }
+val LocalTruePathDark = staticCompositionLocalOf { false }
 
 @Composable
-fun TruePathTheme(content: @Composable () -> Unit) {
+private fun animatedPalette(target: TruePathPalette): TruePathPalette {
+    @Composable fun color(value: Color) = animateColorAsState(value, tween(320), label = "theme-color").value
+    return TruePathPalette(color(target.ink), color(target.muted), color(target.accent),
+        color(target.background), color(target.paper), color(target.line), color(target.green),
+        color(target.amber), color(target.red), color(target.lime), color(target.onAccent),
+        color(target.exampleSurface), color(target.graphEdge))
+}
+
+@Composable
+fun TruePathTheme(darkTheme: Boolean = false, content: @Composable () -> Unit) {
+    val palette = animatedPalette(if (darkTheme) dark else light)
+    val base = if (darkTheme) darkColorScheme() else lightColorScheme()
+    val colors = base.copy(
+        primary = palette.accent, onPrimary = palette.onAccent,
+        secondary = palette.green, onSecondary = palette.onAccent,
+        background = palette.background, onBackground = palette.ink,
+        surface = palette.paper, onSurface = palette.ink, surfaceVariant = palette.exampleSurface,
+        onSurfaceVariant = palette.muted, outline = palette.muted, outlineVariant = palette.line,
+        surfaceTint = palette.accent, primaryContainer = palette.exampleSurface, onPrimaryContainer = palette.ink,
+        secondaryContainer = palette.exampleSurface, onSecondaryContainer = palette.ink,
+        error = palette.red, onError = palette.onAccent,
+        surfaceContainer = palette.paper, surfaceContainerHigh = palette.paper,
+        surfaceContainerHighest = palette.exampleSurface, surfaceContainerLow = palette.background,
+        surfaceContainerLowest = palette.background, inverseSurface = palette.ink, inverseOnSurface = palette.paper,
+    )
+    CompositionLocalProvider(LocalTruePathPalette provides palette, LocalTruePathDark provides darkTheme,
+        LocalContentColor provides palette.ink) {
     MaterialTheme(
         colorScheme = colors,
         typography = Typography(
@@ -46,4 +76,5 @@ fun TruePathTheme(content: @Composable () -> Unit) {
         ),
         content = content,
     )
+    }
 }

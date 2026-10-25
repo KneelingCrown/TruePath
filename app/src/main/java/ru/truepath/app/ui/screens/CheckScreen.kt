@@ -24,19 +24,20 @@ import ru.truepath.app.ui.theme.*
 
 @Composable
 fun CheckScreen(state: AppState, onDraft: (String) -> Unit, onStart: () -> Unit, onAttach: () -> Unit, onRemove: (String) -> Unit, onExample: () -> Unit) {
+    val palette = LocalTruePathPalette.current
     val context = LocalContext.current
     LazyColumn(Modifier.imePadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item { ScreenHeading("Начните с вопроса", "Что проверим?", "Прикрепите материал и добавьте то, в чём сомневаетесь.") }
         item { DemoBanner() }
-        item { Surface(shape = RoundedCornerShape(8.dp), color = Paper) {
+        item { Surface(shape = RoundedCornerShape(8.dp), color = palette.paper) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Icon(Icons.Outlined.ChatBubbleOutline, null, Modifier.size(20.dp), tint = Accent)
+                    Icon(Icons.Outlined.ChatBubbleOutline, null, Modifier.size(20.dp), tint = palette.accent)
                     Text("Ваш материал", style = MaterialTheme.typography.titleMedium)
                 }
                 OutlinedTextField(
                     value = state.draft, onValueChange = onDraft, modifier = Modifier.fillMaxWidth().heightIn(min = 185.dp),
-                    placeholder = { Text("Вставьте новость, ссылку или утверждение.\n\nНапример: «Действительно ли мероприятие перенесли?»", color = Muted) },
+                    placeholder = { Text("Вставьте новость, ссылку или утверждение.\n\nНапример: «Действительно ли мероприятие перенесли?»", color = palette.muted) },
                     shape = RoundedCornerShape(6.dp), maxLines = 12,
                     supportingText = { Text("${state.draft.length} / 12 000") },
                 )
@@ -57,12 +58,12 @@ fun CheckScreen(state: AppState, onDraft: (String) -> Unit, onStart: () -> Unit,
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(19.dp)); Spacer(Modifier.width(9.dp)); Text("Открыть в графе")
             }
         }
-        item { Text("Материал сохранится на устройстве. Исследовательский сервис пока не подключён: приложение не будет придумывать результат проверки.", style = MaterialTheme.typography.bodySmall, color = Muted) }
-        item { Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFECEFE3)) {
+        item { Text("Материал сохранится на устройстве. Исследовательский сервис пока не подключён: приложение не будет придумывать результат проверки.", style = MaterialTheme.typography.bodySmall, color = palette.muted) }
+        item { Surface(shape = RoundedCornerShape(8.dp), color = palette.exampleSurface) {
             Column(Modifier.padding(19.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Tag("Попробуйте сейчас", Green, Icons.Outlined.PlayCircleOutline)
+                Tag("Попробуйте сейчас", palette.green, Icons.Outlined.PlayCircleOutline)
                 Text("Посмотрите, как рождается граф", style = MaterialTheme.typography.titleMedium)
-                Text("Учебный пример: источник, утверждения, цитата и изменение вывода — в реальном времени.", style = MaterialTheme.typography.bodyMedium, color = Muted)
+                Text("Учебный пример: источник, утверждения, цитата и изменение вывода — в реальном времени.", style = MaterialTheme.typography.bodyMedium, color = palette.muted)
                 TextButton(onClick = onExample, contentPadding = PaddingValues(0.dp)) { Text("Запустить пример"); Spacer(Modifier.width(7.dp)); Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(17.dp)) }
             }
         } }
@@ -71,13 +72,14 @@ fun CheckScreen(state: AppState, onDraft: (String) -> Unit, onStart: () -> Unit,
 
 @Composable
 private fun AttachmentRow(attachment: Attachment, onRemove: () -> Unit) {
-    Surface(color = Paper, shape = RoundedCornerShape(6.dp)) {
+    val palette = LocalTruePathPalette.current
+    Surface(color = palette.paper, shape = RoundedCornerShape(6.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(if (attachment.mime.startsWith("image/")) Icons.Outlined.Image else Icons.AutoMirrored.Outlined.InsertDriveFile, null, tint = Accent)
+            Icon(if (attachment.mime.startsWith("image/")) Icons.Outlined.Image else Icons.AutoMirrored.Outlined.InsertDriveFile, null, tint = palette.accent)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(attachment.name, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
-                Text("Только на устройстве", style = MaterialTheme.typography.labelSmall, color = Muted)
+                Text("Только на устройстве", style = MaterialTheme.typography.labelSmall, color = palette.muted)
             }
             IconButton(onClick = onRemove) { Icon(Icons.Outlined.Close, "Убрать ${attachment.name}", Modifier.size(19.dp)) }
         }

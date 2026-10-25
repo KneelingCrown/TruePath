@@ -34,6 +34,7 @@ data class AppState(
     val historyQuery: String = "",
     val loading: Boolean = true,
     val graphReturnTab: AppTab = AppTab.FEED,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
 ) {
     val selectedSession get() = sessions.find { it.id == selectedSessionId }
     val runningSession get() = sessions.find { it.status == RunStatus.RUNNING }
@@ -50,6 +51,7 @@ class TruePathViewModel(application: Application) : AndroidViewModel(application
     private var researchJob: Job? = null
 
     init {
+        mutableState.value = mutableState.value.copy(themeMode = ThemeMode.restore(preferences.getString("theme", null)))
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) { runCatching { store.read() } }
             val restored = result.getOrDefault(emptyList()).map {
@@ -82,6 +84,10 @@ class TruePathViewModel(application: Application) : AndroidViewModel(application
             graphReturnTab = if (tab == AppTab.GRAPH && mutableState.value.tab != AppTab.GRAPH) mutableState.value.tab else mutableState.value.graphReturnTab)
     }
     fun leaveGraph() { mutableState.value = mutableState.value.copy(tab = mutableState.value.graphReturnTab) }
+    fun setTheme(mode: ThemeMode) {
+        mutableState.value = mutableState.value.copy(themeMode = mode)
+        preferences.edit { putString("theme", mode.name) }
+    }
     fun setDraft(text: String) {
         mutableState.value = mutableState.value.copy(draft = text.take(12000))
         preferences.edit { putString("draft", mutableState.value.draft) }
