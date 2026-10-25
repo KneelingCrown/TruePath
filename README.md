@@ -4,6 +4,8 @@ Android-приложение с умной новостной лентой, пр
 
 Документация команды: [концепция](docs/PROJECT.md), [ТЗ MVP и задачи DevOps/Pipeline, Front и Back](docs/TECHNICAL_SPEC.md), [контракт API](docs/API_CONTRACT.md).
 
+Проверки изменений: [pipeline и порядок ревью](docs/PIPELINE.md).
+
 ## Текущее состояние
 
 Это основа Android-фронтенда для хакатона. Работают четыре вкладки:
